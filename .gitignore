@@ -12,6 +12,7 @@ images/
 val_images/
 *.zip
 submission.csv
+ocr_screening/  # 1차 OCR 스크리닝 작업물 (제출물 아님, 로컬 참고용)
 
 # ===== Python =====
 __pycache__/
