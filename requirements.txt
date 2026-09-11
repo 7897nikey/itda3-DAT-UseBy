@@ -10,6 +10,7 @@ opencv-python-headless==4.9.0.80
 pandas==2.2.2
 numpy==1.26.4
 Pillow==10.3.0
+onnxruntime==1.30.0
 
 # ── 아래 2개는 채점 노트북 실행에 필요합니다. 삭제하지 마세요. ──
 nbconvert==7.16.4

@@ -6,6 +6,10 @@
 *.bin
 weights/*
 !weights/.gitkeep
+# 예외: 이건 외부에서 받는 사전학습 가중치가 아니라 우리 팀이 직접 라벨링한
+# 450장으로 파인튜닝한 YOLO 모델(ONNX, 12MB) — 재생성 가능한 게 아니라서
+# 커밋해서 추적한다. predict.ipynb가 이 경로를 그대로 로드함.
+!weights/yolo_exp_mfg.onnx
 
 # ===== 데이터 및 결과물 =====
 images/
@@ -24,6 +28,14 @@ __pycache__/
 .venv/
 venv/
 env/
+# YOLO 학습 실험용 별도 가상환경 (제출물 아님, EasyOCR 메인 환경과 분리)
+yolo_venv/
+# YOLO 학습용으로 변환한 데이터셋(이미지 복사본+라벨 txt, 재생성 가능)과
+# 학습 결과물(체크포인트/로그) — 제출물 아님, 코드(build_dataset.py 등)만 추적
+yolo_train/dataset/
+yolo_train/runs/
+yolo_train/sample_preds/
+yolo_train/*.pt
 
 # ===== OS =====
 .DS_Store
