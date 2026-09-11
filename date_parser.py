@@ -90,35 +90,92 @@ MONTH_NAME = {
 # 겹칠 일이 거의 없음.
 _SEP = r"[.\-/,]"
 
+# 둘 중 최소 하나 자리는 진짜 구두점 구분자가 있어야 매치되게 해서, 완전히
+# 구분자 없는 임의의 8자리 숫자열까지 날짜로 오인하는 건 막는다(4자리 연도가
+# 2015~2035 안에 들어야 한다는 강한 앵커가 있긴 하지만, 그래도 안전판으로
+# 둠). 나머지 한쪽 자리는 구두점(공백 허용)이든, 구두점 없이 공백만이든,
+# 아예 없든(붙어있음) 다 허용 — "선택적"의 세 갈래.
+_FLEX_GAP = r"(?:\s*" + _SEP + r"\s*|\s+)?"
+
 _YMD_NUMERIC = re.compile(
     # 연-월 구분자가 점이 아니라 공백으로 오독되는 경우 허용
     # (실측: OCR이 "2026.08.04"를 "2026 08.04"로 읽음) → 첫 구분자는 선택적
-    r"(?<!\d)(\d{4})\s*" + _SEP + r"?\s*(\d{1,2})" + _SEP + r"\s*(\d{1,2})(?!\d)"
+    r"(?<!\d)(\d{4})" + _FLEX_GAP + r"(\d{1,2})\s*" + _SEP + r"\s*(\d{1,2})(?!\d)"
 )
-# 위 패턴의 반대 경우 — 연-월 구분자는 있는데 월-일 구분자가 없는 경우
-# (실측: "2025.0922 부터 2025.12211" — 둘 다 사람이 보면 자명한 날짜인데
-# 월-일 사이 구분자가 없어서 위 패턴으로는 못 잡음). 둘 중 최소 하나는
-# 구분자가 있어야 매치되게 해서, 완전히 구분자 없는 임의의 8자리 숫자열까지
-# 날짜로 오인하는 건 막는다.
+# 위 패턴의 반대 경우 — 연-월 구분자는 있는데 월-일 구분자가 없거나 공백뿐인
+# 경우 (실측: "2025.0922 부터 2025.12211"은 구분자 자체가 없는 케이스,
+# "유통기한 2021 . 01 14"는 연-월은 점인데 월-일은 공백만인 케이스 — 원래
+# 여기서 연도 뒤에 공백 없이 구분자가 와야 한다고 짜여있어서 못 잡던 버그도
+# 같이 고침(001219.jpg 실측)).
 _YMD_NUMERIC_LOOSE_DAY = re.compile(
-    r"(?<!\d)(\d{4})" + _SEP + r"\s*(\d{1,2})\s*" + _SEP + r"?\s*(\d{1,2})(?!\d)"
+    r"(?<!\d)(\d{4})\s*" + _SEP + r"\s*(\d{1,2})" + _FLEX_GAP + r"(\d{1,2})(?!\d)"
 )
+# 2자리 연도는 4자리 연도보다 앵커가 약해서(연도 그럴듯함 판정 기준이 훨씬
+# 헐겁게 통과됨), 구분자 자체를 생략할 수 있게 풀어주면 무관한 숫자열을
+# 가짜 날짜로 오인하는 사례가 실측으로 나옴(001369.jpg: 영양정보 잡음
+# "233.1A27 10.07"이 2027-10-07로 잘못 매치되어, 진짜 정답 25.09.21보다
+# "더 늦은 날짜" 우선순위 규칙에 밀려 이겨버림). 그래서 두 구분자 모두
+# 진짜 구두점은 유지하고, 앞뒤 공백만 허용한다(실측: 000022.jpg "25. 10.14").
 _YMD_2DIGIT = re.compile(
-    r"(?<!\d)(\d{2})" + _SEP + r"(\d{1,2})" + _SEP + r"(\d{1,2})(?!\d)"
+    r"(?<!\d)(\d{2})\s*" + _SEP + r"\s*(\d{1,2})\s*" + _SEP + r"\s*(\d{1,2})(?!\d)"
+)
+# 위 패턴의 반대 경우 — 연-월 구분자는 있는데 월-일 구분자가 공백뿐인 경우
+# (실측: 000022.jpg "25. 10.14", 000023.jpg "25. 10 10" — 기존엔 구분자
+# 앞뒤로 공백을 전혀 허용 안 해서 둘 다 놓치고 있었음). 월-일 사이는
+# _FLEX_GAP이 아니라 "완전히 붙어있는 경우는 제외"한 버전을 쓴다 — 4자리
+# 연도 패턴과 달리 2자리 연도는 "붙어있는 월일"의 실측 근거가 없었고,
+# 오히려 허용했더니 "16.42"(월1일6이 아니라 그냥 다른 숫자)를 "16.4.2"로
+# 잘못 쪼개 읽는 회귀가 실측으로 남(000404.jpg, 001995.jpg). 연-월 자리는
+# 여전히 진짜 구두점을 요구해서(2자리 연도는 4자리보다 우연히 맞을 확률이
+# 높아 앵커가 약하므로) 오탐 위험을 관리한다.
+_GAP_NO_GLUE = r"(?:\s*" + _SEP + r"\s*|\s+)"
+_YMD_2DIGIT_LOOSE_DAY = re.compile(
+    r"(?<!\d)(\d{2})\s*" + _SEP + r"\s*(\d{1,2})" + _GAP_NO_GLUE + r"(\d{1,2})(?!\d)"
 )
 _YMD_KOREAN = re.compile(
     r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일"
 )
+# 영문 월(3글자) 표기 주변 구분자 — 공백/콤마/대시 중 뭐든 오거나 아예 없어도
+# 됨(실측: "OCT19-2021"처럼 월 이름과 일자 사이 공백이 아예 없고, 일자와
+# 연도 사이는 대시인 경우 확인됨, 001509.jpg). 월 이름 자체가 3글자 정확히
+# 일치해야 하는 강한 앵커라 구분자를 느슨하게 풀어도 오탐 위험은 낮음.
+_ENG_SEP = r"[\s,\-]*"
 _DMY_ENGLISH = re.compile(
-    r"(?<!\d)(\d{1,2})\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(\d{4})(?!\d)",
+    r"(?<!\d)(\d{1,2})" + _ENG_SEP + r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)" + _ENG_SEP + r"(\d{4})(?!\d)",
+    re.IGNORECASE,
+)
+# 월(영문 3글자) - 일 - 4자리연도 순서 (미국식, 예: "AUG 27 2021", "AUG 27, 2021").
+# _DMY_ENGLISH(일-월-년)와 그룹 순서만 반대.
+_MDY_ENGLISH = re.compile(
+    r"(?<!\d)(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)" + _ENG_SEP + r"(\d{1,2})" + _ENG_SEP + r"(\d{4})(?!\d)",
+    re.IGNORECASE,
+)
+# 연도 - 월(영문 3글자) - 일 순서 (예: "2021 AUG 27"). ISO 스타일 연도 선두 +
+# 영문 월 표기 혼합형. 실측으로 세 순서(일-월-년/월-일-년/년-월-일) 전부
+# 발견되어 셋 다 따로 둔다.
+_YMD_ENGLISH = re.compile(
+    r"(?<!\d)(\d{4})" + _ENG_SEP + r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)" + _ENG_SEP + r"(\d{1,2})(?!\d)",
     re.IGNORECASE,
 )
 # 일/월/4자리연도 순서 (예: "20/05/2026"). 확인된 DD-MM-YY(6자리 압축형) 규칙과
 # 같은 순서로, 수입품 등에 흔한 국제식 표기. _YMD_NUMERIC(연도가 맨 앞, 4자리)
 # 이나 _YMD_2DIGIT(연도가 2자리)과는 자릿수 조합이 달라 서로 안 겹친다.
+# 구분자는 "./,-" 중 하나 또는 공백만(OCR이 구분자 자체를 못 읽고 띄어쓰기만
+# 남기는 경우가 실측으로 확인됨)도 허용한다. 콤마도 여기 포함시킨 이유는
+# _YMD_NUMERIC류와 달리 뒤에 항상 4자리 연도(_valid_ymd로 2015~2035 검증)라는
+# 강한 앵커가 있어서 오탐 위험이 낮기 때문 — _MD_ONLY처럼 앵커가 약한 패턴과는
+# 다르게 판단함. 완전히 붙어있는 경우(구분자 자체가 없는 "27032022")는 이
+# 패턴이 아니라 아래 _DDMMYYYY_COMPACT(키워드 근처 한정)가 처리한다.
 _DMY_NUMERIC_4Y = re.compile(
-    r"(?<!\d)(\d{1,2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{4})(?!\d)"
+    r"(?<!\d)(\d{1,2})(?:\s*[.\-/,]\s*|\s+)(\d{1,2})(?:\s*[.\-/,]\s*|\s+)(\d{4})(?!\d)"
 )
+# 연-월-일 사이에 구분자가 아예 없고 공백만 있는 경우 (예: "2026 10 29") —
+# 실측(000009.jpg): 큰 사진이라 전체이미지 방식은 cv2.resize 에러로 통째로
+# 실패했는데, YOLO로 소비기한 영역만 크롭하고 나니 OCR이 "2026 10 29 0"로
+# 거의 완벽하게 읽음. 근데 양쪽 다 구분자가 없어서(_DMY_NUMERIC_4Y와 달리
+# 한쪽도 구두점이 없음) 오탐 위험이 더 크므로, 압축 6/8자리 패턴과 똑같이
+# 기한류 키워드 근처(±30자)에서만 찾는다.
+_YMD_SPACE_ONLY = re.compile(r"(?<!\d)(\d{4})\s+(\d{1,2})\s+(\d{1,2})(?!\d)")
 # 연도 없는 월.일 (예: "02.18") — 영양정보 수치(예: "2.8g")나 보관온도 범위
 # (예: "1-30℃", "0~10℃")와 구분하려고 뒤에 단위/기호가 오면 제외한다.
 # "℃" 기호 자체를 OCR이 그냥 "C"/"c"로 읽는 경우가 많아 그것도 같이 막는다
@@ -133,6 +190,11 @@ _MD_ONLY = re.compile(
     r"(?<!\d)(0?[1-9]|1[0-2])[./](0?[1-9]|[12]\d|3[01])(?!\d)"
     r"(?!\s*(g|kg|mg|%|kcal|℃|도|°|[Cc]\)?))"
 )
+# 구분자 없이 붙어있는 8자리 (예: "27032022") — 위 _DMY_NUMERIC_4Y와 같은
+# 일-월-년 순서(4자리 연도)인데 구분자 자체가 아예 없는 경우. 임의의 8자리
+# 숫자는 품목보고번호 등과 안 겹치므로 6자리 압축형과 동일하게 기한류 키워드
+# 근처(±30자)에서만 찾는다.
+_DDMMYYYY_COMPACT = re.compile(r"(?<!\d)(\d{2})(\d{2})(\d{4})(?!\d)")
 # 구분자 없이 붙어있는 6자리 (예: "050926") — 운영진 확인: 이/월/년(DD-MM-YY)
 # 순서로 인쇄된다. 팀 회의 지침대로 이 형식은 확인됨.
 # 임의의 6자리 숫자는 전화번호/바코드/로트번호 조각과 구분이 안 되므로,
@@ -165,6 +227,32 @@ def _normalize_2digit_year(yy):
     return 2000 + yy
 
 
+# ── 라벨에 찍힌 "읽는 법" 안내 ──
+# 소비기한 문구 근처가 아니라 라벨 설명문 어딘가에 표기 순서를 직접
+# 알려주는 경우가 실제로 많다(예: 000379.jpg "읽는 법 (일월년 순)",
+# 001338.jpg "일월년순까지", 002645.jpg "(년월일 순)", 000449.jpg
+# "표기일-월-년 순", 002637.jpg "연월일춘"(순의 OCR 오독)). "순" 글자 자체는
+# OCR이 숲/신/춘 등으로 잘못 읽는 사례가 많아 필수로 요구하지 않고, 순서
+# 3글자 자체만 본다.
+_ORDER_HINT_YMD = re.compile(r"[연년][.\-\s]?월[.\-\s]?일")
+_ORDER_HINT_DMY = re.compile(r"일[.\-\s]?월[.\-\s]?[연년]")
+
+
+def _detect_order_hint(text):
+    """텍스트 전체에서 표기 순서 안내를 찾는다. 'ymd'/'dmy'/None 반환.
+    둘 다 나오거나 둘 다 안 나오면 판단 불가로 보고 None — 이 경우 기존
+    다수결(연-월-일 우선) 규칙을 그대로 쓴다. 2자리 연도 표기가 연-월-일/
+    일-월-연 둘 다로 유효하게 해석되는 진짜 애매한 경우에만 이 힌트를 쓴다
+    (범위상 한쪽으로만 해석 가능한 경우는 애초에 힌트가 필요 없음)."""
+    has_ymd = bool(_ORDER_HINT_YMD.search(text))
+    has_dmy = bool(_ORDER_HINT_DMY.search(text))
+    if has_ymd and not has_dmy:
+        return "ymd"
+    if has_dmy and not has_ymd:
+        return "dmy"
+    return None
+
+
 def _find_full_candidates(text):
     """연-월-일이 전부 있는 날짜 후보 리스트. [{start,end,year,month,day}, ...].
     겹치는 매치는 먼저 매치된 것 우선으로 제거."""
@@ -177,11 +265,35 @@ def _find_full_candidates(text):
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if _valid_ymd(y, mo, d):
             spans.append((m.start(), m.end(), y, mo, d))
-    for m in _YMD_2DIGIT.finditer(text):
+    order_hint = _detect_order_hint(text)  # 라벨 전체 기준, 후보마다 반복계산 안 함
+
+    def _add_2digit_year_candidate(m):
         yy, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        y = _normalize_2digit_year(yy)
-        if _valid_ymd(y, mo, d):
-            spans.append((m.start(), m.end(), y, mo, d))
+        y_ymd = _normalize_2digit_year(yy)   # 연-월-일로 읽었을 때
+        y_dmy = _normalize_2digit_year(d)    # 일-월-연으로 읽었을 때(순서 반전)
+        ymd_ok = _valid_ymd(y_ymd, mo, d)
+        dmy_ok = _valid_ymd(y_dmy, mo, yy)
+        if ymd_ok and dmy_ok:
+            # 둘 다 유효한 진짜 애매한 경우(두 수 모두 15~31 겹침구간).
+            # 라벨에 읽는 법이 명시돼 있으면 그걸 따르고, 없으면 기존
+            # 다수결(연-월-일 우선, "읽는법:년월일순" 실측 근거)을 유지한다.
+            if order_hint == "dmy":
+                spans.append((m.start(), m.end(), y_dmy, mo, yy))
+            else:
+                spans.append((m.start(), m.end(), y_ymd, mo, d))
+        elif ymd_ok:
+            spans.append((m.start(), m.end(), y_ymd, mo, d))
+        elif dmy_ok:
+            # 1차 해석(연-월-일)이 연도 유효범위(2015~2035)를 벗어나 무효일 때만
+            # 순서를 뒤집어 재시도. 수입품은 일-월-연(DD.MM.YY)인 경우가 실측으로
+            # 확인됨(001281.jpg: "05/08/25" → 연-월-일로 읽으면 2005년이라
+            # 무효, 일-월-연으로 읽으면 2025-08-05로 유효 & 정답과 일치).
+            spans.append((m.start(), m.end(), y_dmy, mo, yy))
+
+    for m in _YMD_2DIGIT.finditer(text):
+        _add_2digit_year_candidate(m)
+    for m in _YMD_2DIGIT_LOOSE_DAY.finditer(text):
+        _add_2digit_year_candidate(m)
     for m in _YMD_KOREAN.finditer(text):
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if _valid_ymd(y, mo, d):
@@ -191,12 +303,22 @@ def _find_full_candidates(text):
         mo = MONTH_NAME.get(mon_str)
         if mo and _valid_ymd(y, mo, d):
             spans.append((m.start(), m.end(), y, mo, d))
+    for m in _MDY_ENGLISH.finditer(text):
+        mon_str, d, y = m.group(1).upper(), int(m.group(2)), int(m.group(3))
+        mo = MONTH_NAME.get(mon_str)
+        if mo and _valid_ymd(y, mo, d):
+            spans.append((m.start(), m.end(), y, mo, d))
+    for m in _YMD_ENGLISH.finditer(text):
+        y, mon_str, d = int(m.group(1)), m.group(2).upper(), int(m.group(3))
+        mo = MONTH_NAME.get(mon_str)
+        if mo and _valid_ymd(y, mo, d):
+            spans.append((m.start(), m.end(), y, mo, d))
     for m in _DMY_NUMERIC_4Y.finditer(text):
         d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if _valid_ymd(y, mo, d):
             spans.append((m.start(), m.end(), y, mo, d))
 
-    # 구분자 없는 6자리(DD-MM-YY) — 키워드 근처(±30자)에서만 탐색
+    # 구분자 없는 6자리(DD-MM-YY)/8자리(DD-MM-YYYY) — 키워드 근처(±30자)에서만 탐색
     seen_windows = set()
     for kw in ALL_KEYWORDS:
         for idx in _find_all_occurrences(text, kw):
@@ -207,6 +329,14 @@ def _find_full_candidates(text):
             for m in _DDMMYY_COMPACT.finditer(text[ws:we]):
                 d, mo, yy = int(m.group(1)), int(m.group(2)), int(m.group(3))
                 y = _normalize_2digit_year(yy)
+                if _valid_ymd(y, mo, d):
+                    spans.append((ws + m.start(), ws + m.end(), y, mo, d))
+            for m in _DDMMYYYY_COMPACT.finditer(text[ws:we]):
+                d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                if _valid_ymd(y, mo, d):
+                    spans.append((ws + m.start(), ws + m.end(), y, mo, d))
+            for m in _YMD_SPACE_ONLY.finditer(text[ws:we]):
+                y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
                 if _valid_ymd(y, mo, d):
                     spans.append((ws + m.start(), ws + m.end(), y, mo, d))
 
