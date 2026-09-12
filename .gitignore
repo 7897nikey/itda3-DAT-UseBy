@@ -40,3 +40,11 @@ yolo_train/*.pt
 # ===== OS =====
 .DS_Store
 Thumbs.db
+
+# ===== KGW_rapidocr 브랜치 추가분 =====
+# 아래 둘도 재생성이 어렵거나 인터넷에서 받아야 하는 파일이라 커밋해서 추적함.
+# alt_pipeline_rapidocr/predict.ipynb가 이 경로를 그대로 로드하므로,
+# 빠지면 오프라인 채점에서 바로 실패함. (팀원 yolo_exp_mfg.onnx와 같은 이유)
+!alt_pipeline_rapidocr/weights/
+!alt_pipeline_rapidocr/weights/region_best.pt
+!alt_pipeline_rapidocr/weights/korean_PP-OCRv5_rec_mobile.onnx

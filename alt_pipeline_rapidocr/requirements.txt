@@ -1,0 +1,11 @@
+# ITDA 3rd 학술제 - 채점 환경: Python 3.10 / Standard 4-Core vCPU / GPU 없음 / 오프라인
+rapidocr-onnxruntime==1.4.4
+ultralytics==8.4.147
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+pandas==2.2.2
+Pillow==10.3.0
+
+# 채점 노트북 실행에 필요 (삭제 금지)
+nbconvert==7.16.4
+ipykernel==6.29.4
