@@ -166,7 +166,7 @@ jupyter nbconvert --to notebook --execute predict.ipynb \
     --output /tmp/executed.ipynb
 ```
 
-가중치 두 개는 `weights/`에 이미 커밋해둠. 받아올 게 없으니 인터넷 없이도 그냥 돌아감. main의 `download_weights.sh`는 EasyOCR용이라 이 폴더에는 필요 없음.
+가중치 두 개는 `weights/`에 이미 커밋해둠. 받아올 게 없으니 인터넷 없이도 그냥 돌아감. 예전엔 EasyOCR용 `download_weights.sh`가 있었는데 이제 안 써서 삭제함.
 
 `region_best.pt`는 우리가 직접 학습한 거라 다시 받을 데가 없고, `korean_PP-OCRv5_rec_mobile.onnx`는 공개 모델이지만 채점 서버가 오프라인이라 어차피 미리 있어야 함. 그래서 팀원이 `yolo_exp_mfg.onnx`를 커밋한 것과 같은 이유로 둘 다 커밋했음. 합쳐서 18MB임.
 
