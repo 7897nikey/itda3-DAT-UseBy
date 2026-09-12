@@ -1,0 +1,8 @@
+crops/
+sweep/
+sweep_sorted/
+sweep_kr/
+*.jsonl
+*.onnx
+.venv/
+__pycache__/

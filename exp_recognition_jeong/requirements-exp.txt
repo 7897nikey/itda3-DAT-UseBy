@@ -1,0 +1,7 @@
+# 인식 실험·파이프라인 환경 (torch 불필요)
+rapidocr-onnxruntime
+onnxruntime
+opencv-python-headless
+numpy
+pandas
+Pillow
