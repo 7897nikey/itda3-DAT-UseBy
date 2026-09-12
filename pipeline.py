@@ -82,24 +82,78 @@ def make_abs_cfg(cfg_path):
     return out
 
 
+def _letterbox(img, size, color=(114, 114, 114)):
+    """비율 유지하며 정사각형(size x size)으로 패딩 — YOLO 입력 전처리."""
+    h, w = img.shape[:2]
+    scale = min(size / w, size / h)
+    nw, nh = max(1, round(w * scale)), max(1, round(h * scale))
+    resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR)
+    canvas = np.full((size, size, 3), color, dtype=np.uint8)
+    dw, dh = (size - nw) // 2, (size - nh) // 2
+    canvas[dh:dh + nh, dw:dw + nw] = resized
+    return canvas, scale, dw, dh
+
+
+def _nms(boxes, scores, iou_thresh=0.45):
+    idxs = np.argsort(-scores)
+    keep = []
+    while len(idxs) > 0:
+        i = idxs[0]
+        keep.append(i)
+        if len(idxs) == 1:
+            break
+        rest = idxs[1:]
+        xx1 = np.maximum(boxes[i, 0], boxes[rest, 0]); yy1 = np.maximum(boxes[i, 1], boxes[rest, 1])
+        xx2 = np.minimum(boxes[i, 2], boxes[rest, 2]); yy2 = np.minimum(boxes[i, 3], boxes[rest, 3])
+        inter = np.maximum(0, xx2 - xx1) * np.maximum(0, yy2 - yy1)
+        area_i = (boxes[i, 2] - boxes[i, 0]) * (boxes[i, 3] - boxes[i, 1])
+        area_r = (boxes[rest, 2] - boxes[rest, 0]) * (boxes[rest, 3] - boxes[rest, 1])
+        iou = inter / (area_i + area_r - inter + 1e-9)
+        idxs = rest[iou < iou_thresh]
+    return keep
+
+
 class Engine:
     def __init__(self, yolo_weights, conf=0.25, imgsz=960, rapid_cfg=None):
-        from ultralytics import YOLO
-        self.det = YOLO(yolo_weights)
+        # region_best.pt(torch)를 그대로 ultralytics.YOLO로 돌리면 이미지 한 장이
+        # 유난히 크거나 할 때 전처리 오버헤드가 커서 느림(실측: 6장 평균 배율
+        # 7.1배, 큰 사진 한 장은 6.16초→0.41초). onnxruntime으로 직접 돌리면
+        # RapidOCR(이미 onnx)과 완전히 같은 실행기라 torch 의존성 자체가
+        # 없어지고 훨씬 빠르다. 검출 결과(클래스/신뢰도)는 거의 동일함을 확인함.
+        import onnxruntime as ort
+        self.det_sess = ort.InferenceSession(yolo_weights, providers=["CPUExecutionProvider"])
         self.conf, self.imgsz = conf, imgsz
         from rapidocr_onnxruntime import RapidOCR
         cfg = make_abs_cfg(rapid_cfg)
         self.ocr = RapidOCR(config_path=cfg) if cfg else RapidOCR()
 
     def detect(self, img):
-        r = self.det.predict(img, imgsz=self.imgsz, conf=self.conf,
-                             device="cpu", verbose=False)[0]
+        canvas, scale, dw, dh = _letterbox(img, self.imgsz)
+        arr = canvas[:, :, ::-1].astype(np.float32) / 255.0  # BGR -> RGB
+        arr = arr.transpose(2, 0, 1)[None, ...]
+        raw = self.det_sess.run(None, {"images": arr})[0]  # (1, 4+n클래스, N)
+        preds = raw[0].T  # (N, 4+n클래스): cx,cy,w,h,score...
+
         out = {v: [] for v in CLS.values()}
-        if r.boxes is None: return out
-        for b, c, cf in zip(r.boxes.xyxy.cpu().numpy(),
-                            r.boxes.cls.cpu().numpy().astype(int),
-                            r.boxes.conf.cpu().numpy()):
-            out[CLS.get(int(c), "?")].append((b.tolist(), float(cf)))
+        n_cls = len(CLS)
+        cls_scores = preds[:, 4:4 + n_cls]
+        cls_id = cls_scores.argmax(axis=1)
+        cls_conf = cls_scores.max(axis=1)
+        mask = cls_conf >= self.conf
+        preds, cls_id, cls_conf = preds[mask], cls_id[mask], cls_conf[mask]
+        if len(preds) == 0:
+            return out
+
+        cx, cy, bw, bh = preds[:, 0], preds[:, 1], preds[:, 2], preds[:, 3]
+        x1 = (cx - bw / 2 - dw) / scale; y1 = (cy - bh / 2 - dh) / scale
+        x2 = (cx + bw / 2 - dw) / scale; y2 = (cy + bh / 2 - dh) / scale
+        boxes = np.stack([x1, y1, x2, y2], axis=1)
+        for c in np.unique(cls_id):
+            m = cls_id == c
+            keep = _nms(boxes[m], cls_conf[m])
+            name = CLS.get(int(c), "?")
+            for idx in keep:
+                out[name].append((boxes[m][idx].tolist(), float(cls_conf[m][idx])))
         return out
 
     def read(self, img):

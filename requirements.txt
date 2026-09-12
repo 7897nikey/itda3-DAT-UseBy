@@ -1,6 +1,8 @@
 # ITDA 3rd 학술제 - 채점 환경: Python 3.10 / Standard 4-Core vCPU / GPU 없음 / 오프라인
+# YOLO 검출도 onnxruntime으로 직접 돌려서(region_best.onnx) ultralytics/torch가
+# 필요 없음 - RapidOCR과 엔진을 하나로 통일함(실측: torch 경로 대비 7.1배 빠름).
 rapidocr-onnxruntime==1.4.4
-ultralytics==8.4.147
+onnxruntime==1.30.0
 opencv-python-headless==4.9.0.80
 numpy==1.26.4
 pandas==2.2.2

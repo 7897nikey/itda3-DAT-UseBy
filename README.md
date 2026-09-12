@@ -60,7 +60,7 @@
 ```
 
 - **문자 인식(OCR)**: [RapidOCR](https://github.com/RapidAI/RapidOCR) — `onnxruntime`만으로 동작, torch 불필요. 인식 모델은 한국어 특화 사전학습 공개 모델(`korean_PP-OCRv5_rec_mobile.onnx`)을 그대로 사용(직접 학습 안 함).
-- **영역 탐지**: YOLO11n — 운영진이 배포한 `archive.zip` 라벨(학습 2,892장 / 검증 808장)로 파인튜닝한 4클래스(date/due/code/full) 검출기. **팀이 직접 라벨링한 손라벨 450장은 학습에서 완전히 제외**하고 성능 측정 전용으로만 씀(학습 데이터 유출 방지). 검증 808장 기준 평균 mAP50 0.916.
+- **영역 탐지**: YOLO11n — 운영진이 배포한 `archive.zip` 라벨(학습 2,892장 / 검증 808장)로 파인튜닝한 4클래스(date/due/code/full) 검출기. **팀이 직접 라벨링한 손라벨 450장은 학습에서 완전히 제외**하고 성능 측정 전용으로만 씀(학습 데이터 유출 방지). 검증 808장 기준 평균 mAP50 0.916. 원래 `.pt`(torch)로 내보냈던 걸 `region_best.onnx`로 다시 내보내 RapidOCR과 같은 onnxruntime 엔진으로 통일함 — torch 의존성이 완전히 사라지고 검출 속도가 7.1배 빨라짐(검출 결과는 동일).
 - **날짜 파싱**: `date_parser.py` — 정규식 기반 규칙 파서(새 모델 학습 아님). 부터/까지 범위, 제조일로부터 N개월 등 상대기간 계산, 2자리/4자리 연도, 압축 표기(DDMMYY), 영문 월(JAN~DEC) 등 실측으로 확인된 표기 패턴을 처리한다. 그 위에 `date_parser_plus.py`가 실패건에만 보강 레이어를 얹는다(원래 맞던 건은 안 건드림).
 - **실측 결과** (팀 손라벨 449장, 학습에 안 쓴 완전히 독립된 검증셋): **완전일치 75.72%**, 항목별 부분점수(연/월/일 평균) 81.89%, 응답률 91.5%. 속도는 장당 0.599초 — 500장 환산 시 예산 2400초의 12.5%만 사용.
 - 자세한 실측 분석(어디서 시간이 쓰이는지, 뭘 시도했다가 소용없었는지, 남은 실패 원인 등)은 [`docs/rapidocr_notes.md`](docs/rapidocr_notes.md)에 정리되어 있음.
@@ -88,7 +88,7 @@ itda3-DAT-UseBy/
 │   └── rapidocr_notes.md      # 파이프라인 설계·실측 분석 상세 노트
 └── weights/
     ├── .gitkeep
-    ├── region_best.pt              # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
+    ├── region_best.onnx            # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
     └── korean_PP-OCRv5_rec_mobile.onnx  # RapidOCR 한국어 인식 모델 (공개 모델, 오프라인 대비 커밋)
 ```
 
