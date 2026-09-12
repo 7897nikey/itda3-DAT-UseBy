@@ -17,8 +17,10 @@ import os
 import sys
 
 # main의 date_parser.py를 가져오기 위한 경로 추가.
-# 이 파일이 alt_pipeline_rapidocr/ 안에 있으므로 한 단계 위가 저장소 최상단임.
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# (원래 alt_pipeline_rapidocr/ 하위 폴더에 있을 때는 두 단계 위가 저장소
+# 루트였는데, 이 브랜치를 main으로 승격하면서 이 파일 자체가 루트로 옮겨져
+# date_parser.py와 같은 폴더에 있게 됨 — 그래서 한 단계만 올라가면 됨)
+_ROOT = os.path.dirname(os.path.abspath(__file__))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
