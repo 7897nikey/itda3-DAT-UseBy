@@ -40,6 +40,8 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=None)
     ap.add_argument("--rec", default=None, help="인식 모델 onnx (기본: RapidOCR 기본 모델)")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--split", default=None, help="dev / holdout (검증용). 제출 시에는 지정하지 않음")
     a = ap.parse_args()
     import pipeline_core
-    run(cascade, a.input, a.out, a.rec if a.rec is not None else pipeline_core.REC_ONNX, a.limit)
+    run(cascade, a.input, a.out, a.rec if a.rec is not None else pipeline_core.REC_ONNX,
+        a.limit, split=a.split)

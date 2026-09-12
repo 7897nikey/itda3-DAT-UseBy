@@ -311,8 +311,17 @@ def list_images(input_dir):
                   if os.path.splitext(f)[1].lower() in exts)
 
 
-def run(strategy, input_dir=None, output_path=None, rec_path=REC_ONNX, limit=0, log_every=50):
-    """strategy(engine, region, kind) -> (year, month, day) 를 받아 submission 을 만든다."""
+def run(strategy, input_dir=None, output_path=None, rec_path=REC_ONNX, limit=0, log_every=50,
+        split=None, splits_csv="splits.csv", fallback=None, budget_sec=None, safe_ratio=0.85):
+    """strategy(engine, region, kind) -> (year, month, day) 를 받아 submission 을 만든다.
+
+    split 을 주면(dev / holdout) splits.csv 에 있는 그 분할의 이미지만 처리한다 (검증용).
+    실제 제출 때는 split 없이 입력 폴더 전체를 돈다.
+
+    시간 안전장치: fallback 을 주면, 남은 이미지를 지금 속도로 끝냈을 때 예산(기본 2400초)의
+    safe_ratio 를 넘길 것으로 보이는 순간부터 남은 이미지를 fallback 전략으로 처리한다.
+    채점 서버가 측정 환경보다 느려도 시간 초과로 실격되지 않게 하기 위한 것이다.
+    """
     import pandas as pd
 
     input_dir = input_dir or os.environ.get("ITDA_INPUT_DIR", "./val_images")
@@ -323,17 +332,31 @@ def run(strategy, input_dir=None, output_path=None, rec_path=REC_ONNX, limit=0, 
     run_ocr(engine, np.full((48, 160, 3), 255, np.uint8))   # OCR warm-up (측정에서 제외)
 
     files = list_images(input_dir)
+    if split:
+        sp = pd.read_csv(splits_csv, dtype=str)
+        want = set(sp[(sp["split"] == split) & (sp["split"] != "excluded")]["file"].dropna())
+        files = [f for f in files if os.path.basename(f) in want]
+        print(f"split={split} 필터: {len(files)}장", flush=True)
     if limit:
         files = files[:limit]
     print(f"입력 이미지 {len(files)}장", flush=True)
 
+    budget = budget_sec if budget_sec is not None else float(os.environ.get("ITDA_BUDGET_SEC", "2400"))
+    cur, downgraded = strategy, False
+
     rows, t0 = [], time.perf_counter()
     for i, path in enumerate(files, 1):
         image_id = os.path.splitext(os.path.basename(path))[0]
+        if fallback is not None and not downgraded and i > 20:      # 20장 이후부터 추세를 본다
+            projected = (time.perf_counter() - t0) / (i - 1) * len(files)
+            if projected > budget * safe_ratio:
+                cur, downgraded = fallback, True
+                print(f"[시간] 예상 {projected:.0f}초 > 예산 {budget * safe_ratio:.0f}초 "
+                      f"-> {i}장째부터 가벼운 경로로 전환", flush=True)
         try:
             bgr = load_image(path)
             region, kind, _ = det.crop(bgr)
-            pred = strategy(engine, region, kind)
+            pred = cur(engine, region, kind)
         except Exception as e:                                # 한 장이 깨져도 전체를 죽이지 않는다
             print(f"[WARN] {image_id}: {e}", flush=True)
             pred = NONE3
@@ -344,7 +367,8 @@ def run(strategy, input_dir=None, output_path=None, rec_path=REC_ONNX, limit=0, 
 
     el = time.perf_counter() - t0
     n = max(1, len(rows))
-    print(f"완료 {len(rows)}장 / {el:.1f}초 (장당 {el / n:.3f}초, warm-up 제외)", flush=True)
+    print(f"완료 {len(rows)}장 / {el:.1f}초 (장당 {el / n:.3f}초, warm-up 제외)"
+          + ("  ※ 도중에 가벼운 경로로 전환됨" if downgraded else ""), flush=True)
     df = pd.DataFrame(rows, columns=["image_id", "year", "month", "day", "final_date"])
     df.to_csv(output_path, index=False)
     print(f"저장: {output_path}  |  응답률 {(df.final_date != 'NONE').mean():.1%}", flush=True)
