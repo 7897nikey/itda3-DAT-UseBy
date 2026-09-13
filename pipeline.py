@@ -22,7 +22,7 @@ from PIL import Image, ImageOps
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from date_parser_plus import extract_expiry_fields
-from preprocess import enhance
+from preprocess import enhance, binarize_dilate
 
 NONE_ROW = {"year":"NONE","month":"NONE","day":"NONE","final_date":"NONE"}
 CLS = {0:"date", 1:"due", 2:"code", 3:"full"}
@@ -44,13 +44,13 @@ def union_box(boxes):
     return [a[:,0].min(), a[:,1].min(), a[:,2].max(), a[:,3].max()]
 
 
-def pad_clip(box, W, H, pad=0.30, min_pad_px=12):
+def pad_clip(box, W, H, pad=0.45, min_pad_px=12):
     x0,y0,x1,y1 = box
     pw = max((x1-x0)*pad, min_pad_px); ph = max((y1-y0)*pad, min_pad_px)
     return [max(0,int(x0-pw)), max(0,int(y0-ph)), min(W,int(x1+pw)), min(H,int(y1+ph))]
 
 
-def upscale_small(crop, target_h=64):
+def upscale_small(crop, target_h=100):
     """작은 크롭은 OCR 인식률이 급락하므로 확대한다."""
     h, w = crop.shape[:2]
     if h >= target_h or h == 0: return crop
@@ -195,7 +195,15 @@ class Engine:
                 parsed, info["route"] = p2, "crop+pp"
                 info["text"] = t2[:300]
 
-        # 3차: 그래도 실패 시 전체 이미지
+        # 3차: 도트프린터 날짜 전용 보정
+        if parsed["final_date"] == "NONE" and crops:
+            t2b = " ".join(self.read(binarize_dilate(c)) for c in crops)
+            p2b = extract_expiry_fields(t2b, from_crop=True)
+            if p2b["final_date"] != "NONE":
+                parsed, info["route"] = p2b, "crop+dot"
+                info["text"] = t2b[:300]
+
+        # 4차: 그래도 실패 시 전체 이미지
         if parsed["final_date"] == "NONE" and fallback:
             h,w = img.shape[:2]; s = 1600/max(h,w)
             full = cv2.resize(img,(round(w*s),round(h*s)),interpolation=cv2.INTER_AREA) if s<1 else img

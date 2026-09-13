@@ -22,8 +22,8 @@ def enhance(img):
     g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # 사진을 8x8 칸으로 나눠 칸마다 대비를 올림.
-    # clipLimit 2.0은 너무 세게 올려서 노이즈까지 도드라지는 걸 막는 상한임.
-    g = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(g)
+    # clipLimit 3.0 — D/E/F 신규 라벨 907장 기준 재검증해서 2.0보다 나음 확인.
+    g = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(g)
 
     # 끊긴 점을 이어붙임. 2x2로 작게 잡은 이유는 이보다 키우면 글자끼리
     # 붙어버려서 8과 3을 구분 못 하는 일이 생기기 때문임.
@@ -31,3 +31,14 @@ def enhance(img):
     g = cv2.morphologyEx(g, cv2.MORPH_CLOSE, k)
 
     return cv2.cvtColor(g, cv2.COLOR_GRAY2BGR)
+
+
+def binarize_dilate(img, k=5):
+    """도트프린터 날짜 전용 보정. 오츠 이진화 후 팽창해서 점을 잇는다."""
+    g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    g = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(g)
+    _, th = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    th = cv2.dilate(th, kernel, iterations=1)
+    th = cv2.bitwise_not(th)
+    return cv2.cvtColor(th, cv2.COLOR_GRAY2BGR)
