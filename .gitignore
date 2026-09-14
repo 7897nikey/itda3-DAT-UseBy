@@ -11,7 +11,7 @@ weights/*
 !weights/korean_PP-OCRv5_rec_mobile.onnx
 
 # ===== 데이터 및 결과물 =====
-images/
+/images/
 val_images/
 *.zip
 submission.csv

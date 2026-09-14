@@ -86,11 +86,16 @@ itda3-DAT-UseBy/
 ├── .gitignore
 ├── docs/
 │   └── rapidocr_notes.md      # 파이프라인 설계·실측 분석 상세 노트
-└── weights/
-    ├── .gitkeep
-    ├── region_best.onnx            # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
-    └── korean_PP-OCRv5_rec_mobile.onnx  # RapidOCR 한국어 인식 모델 (공개 모델, 오프라인 대비 커밋)
+├── weights/
+│   ├── .gitkeep
+│   ├── region_best.onnx            # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
+│   └── korean_PP-OCRv5_rec_mobile.onnx  # RapidOCR 한국어 인식 모델 (공개 모델, 오프라인 대비 커밋)
+└── custom_data/                # 가산점용 팀 자체 수집 데이터
+    ├── images/                 # 팀원이 직접 촬영한 소비기한 사진 30장 (의약외품/식품/일반의약품)
+    └── labels.csv               # image_id, year, month, day, final_date 정답 라벨
 ```
+
+`custom_data/`: 팀원이 방·주변에서 찾은 의약외품·식품·일반의약품 소비기한 사진을 직접 촬영해 라벨링한 30장. `labels.csv`가 정답, `images/`가 원본 사진.
 
 ---
 
