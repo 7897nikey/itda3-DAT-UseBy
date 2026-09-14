@@ -160,6 +160,11 @@ class Engine:
         res, _ = self.ocr(img)
         return " ".join(x[1] for x in (res or []))
 
+    def read_nodet(self, img):
+        """RapidOCR 자체 텍스트탐지 없이 크롭 전체를 한 줄로 바로 인식."""
+        res, _ = self.ocr(img, use_det=False)
+        return res[0][0] if res else ""
+
     def run_one(self, path, fallback=True):
         img = load_bgr(path)
         if img is None: return dict(NONE_ROW), {"err":"load_fail"}
@@ -203,7 +208,22 @@ class Engine:
                 parsed, info["route"] = p2b, "crop+dot"
                 info["text"] = t2b[:300]
 
-        # 4차: 그래도 실패 시 전체 이미지
+        # 4차: Det 우회 — date/due 타이트 박스(여유분 10%)를 RapidOCR 자체
+        #      텍스트탐지 없이 바로 인식. 탐지가 놓치는 케이스 구제용
+        if parsed["final_date"] == "NONE" and (det["date"] or det["due"]):
+            tight = []
+            for box, _ in det["date"] + det["due"]:
+                x0,y0,x1,y1 = pad_clip(box, W, H, pad=0.10)
+                c = img[y0:y1, x0:x1]
+                if c.size: tight.append(c)
+            if tight:
+                t2c = " ".join(self.read_nodet(c) for c in tight)
+                p2c = extract_expiry_fields(t2c, from_crop=True)
+                if p2c["final_date"] != "NONE":
+                    parsed, info["route"] = p2c, "crop+nodet"
+                    info["text"] = t2c[:300]
+
+        # 5차: 그래도 실패 시 전체 이미지
         if parsed["final_date"] == "NONE" and fallback:
             h,w = img.shape[:2]; s = 1600/max(h,w)
             full = cv2.resize(img,(round(w*s),round(h*s)),interpolation=cv2.INTER_AREA) if s<1 else img
