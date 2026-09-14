@@ -90,12 +90,23 @@ itda3-DAT-UseBy/
 │   ├── .gitkeep
 │   ├── region_best.onnx            # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
 │   └── korean_PP-OCRv5_rec_mobile.onnx  # RapidOCR 한국어 인식 모델 (공개 모델, 오프라인 대비 커밋)
-└── custom_data/                # 가산점용 팀 자체 수집 데이터
-    ├── images/                 # 팀원이 직접 촬영한 소비기한 사진 30장 (의약외품/식품/일반의약품)
-    └── labels.csv               # image_id, year, month, day, final_date 정답 라벨
+└── custom_data/                # 가산점용 팀 자체 수집 데이터 (평가 전용, 학습 미사용)
+    ├── images/                 # 직접 촬영한 소비기한 사진 97장 (cust_0001 ~ cust_0098)
+    ├── labels.csv              # ★ 정답 라벨 — image_id, year, month, day, final_date, status, 난이도 태그
+    ├── meta.csv                # 수집 메타 (제품군, 표기 용어, 인쇄 방식, 원본 제원)
+    ├── parser_cases.csv        # 이미지 없이 돌리는 날짜 파서 회귀 케이스
+    ├── docs/                   # 라벨 판정 규칙 · 수집 설계 근거
+    └── tools/                  # 전처리 · 라벨 검증 스크립트
 ```
 
-`custom_data/`: 팀원이 방·주변에서 찾은 의약외품·식품·일반의약품 소비기한 사진을 직접 촬영해 라벨링한 30장. `labels.csv`가 정답, `images/`가 원본 사진.
+`custom_data/`: 팀이 직접 촬영·라벨링한 자체 수집 데이터 **97장**. 정답 라벨은 `custom_data/labels.csv`, 사진은 `custom_data/images/`이며, 수집 설계와 라벨 판정 규칙은 `custom_data/docs/`에 있습니다. **학습에는 쓰지 않은 평가 전용 셋**입니다.
+
+두 묶음으로 나뉘고 노리는 실패 모드가 다릅니다. **배치 1**(`cust_0069`~`0098`, 30장)은 의약품 PTP·사용기한, 영양제, 화장품·앰플, 일본 `賞味期限`, 유럽 `BEST BEFORE DD/MM/YYYY` 등 **표기 체계**를 때리고, **배치 2**(`cust_0001`~`0068`, 67장)는 편의점 현장에서 찍은 뚜껑 각인·원형 곡면·도트 매트릭스·날짜+시각+로트 동시 인쇄 등 **촬영 조건**을 때립니다. 성격이 다르므로 합산 점수로 보고하지 않습니다.
+
+```bash
+python pipeline.py --input_dir custom_data/images --output_path pred_custom.csv --weights weights/region_best.onnx
+python evaluate.py pred_custom.csv custom_data/labels.csv "custom_data"
+```
 
 ---
 
