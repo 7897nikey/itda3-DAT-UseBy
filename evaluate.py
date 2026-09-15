@@ -14,6 +14,11 @@ import sys, pandas as pd
 def norm(df):
     d = df.copy()
     d["image_id"] = d.image_id.astype(str).str.strip()
+    # 숫자만으로 된 image_id는 6자리로 통일. 압축 배포 과정에서 일부 파일명이
+    # 0-padding 없이(3345.jpg 등) 섞여 나와 있으면 병합이 안 돼서 그 건이
+    # 통째로 채점에서 빠짐 — cust_0001 같은 비숫자 id는 안 건드림.
+    digit = d.image_id.str.fullmatch(r"\d+", na=False)
+    d.loc[digit, "image_id"] = d.loc[digit, "image_id"].str.zfill(6)
     for c in ("year","month","day"):
         s = d[c].astype(str).str.strip()
         w = {"year":4,"month":2,"day":2}[c]

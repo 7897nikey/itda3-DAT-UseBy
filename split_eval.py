@@ -14,6 +14,9 @@ from fractions import Fraction
 def norm(df):
     d = df.copy()
     d["image_id"] = d.image_id.astype(str).str.strip()
+    # 숫자만으로 된 image_id는 6자리로 통일 (evaluate.py와 동일 처리).
+    digit = d.image_id.str.fullmatch(r"\d+", na=False)
+    d.loc[digit, "image_id"] = d.loc[digit, "image_id"].str.zfill(6)
     for c in ("year","month","day"):
         s = d[c].astype(str).str.strip()
         w = {"year":4,"month":2,"day":2}[c]
@@ -31,7 +34,7 @@ def sign_p(up, dn):
     return float(min(Fraction(2*sum(comb(n,k) for k in range(min(up,dn)+1)), 2**n), 1))
 
 def score(path, gt):
-    pr = norm(pd.read_csv(path, dtype=str).fillna("NONE"))
+    pr = norm(pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("NONE"))
     g = gt[gt.image_id.isin(set(pr.image_id))]
     m = g.merge(pr, on="image_id", how="left", suffixes=("_t","_p")).fillna("NONE")
     m["grp"] = m.batch.map(grp)
@@ -43,7 +46,7 @@ def score(path, gt):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     show_f = "--show-f" in sys.argv
-    gt = norm(pd.read_csv(args[1], dtype=str)); gt = gt[gt.status=="완료"]
+    gt = norm(pd.read_csv(args[1], dtype=str, encoding="utf-8-sig")); gt = gt[gt.status=="완료"]
     frames = {}
     for path in args[0].split(","):
         m = score(path, gt); frames[path] = m
