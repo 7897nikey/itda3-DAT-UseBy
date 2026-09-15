@@ -60,8 +60,7 @@
   │       별칭 통일(사용기한→소비기한) → OCR 오독 글자 교정 재시도 →
   │       구분자 없는 압축 표기 → 구분자 없는 전숫자 날짜 → 연-월만이라도 추출
   │
-  └─ [5] 그래도 실패하면 월-일만이라도 제출 — 채점이 항목별 부분점수라
-          NONE은 확정 0점, 틀려도 0점이라 찍는 쪽이 손해가 없음
+  └─ [5] 그래도 실패하면 월-일만이라도 제출
 
 결과: image_id, year, month, day, final_date
 ```
@@ -145,8 +144,8 @@ python evaluate.py pred_custom.csv custom_data/labels.csv "custom_data"
 ### 1) 가상환경 구축 및 패키지 설치
 
 ````
-git clone <본인 팀 저장소 URL>
-cd <저장소 디렉토리>
+git clone https://github.com/7897nikey/itda3-DAT-UseBy.git
+cd itda3-DAT-UseBy
 pip install -r requirements.txt
 ````
 
