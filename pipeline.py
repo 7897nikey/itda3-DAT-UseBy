@@ -50,12 +50,55 @@ def pad_clip(box, W, H, pad=0.45, min_pad_px=12):
     return [max(0,int(x0-pw)), max(0,int(y0-ph)), min(W,int(x1+pw)), min(H,int(y1+ph))]
 
 
+MAX_CROP_SIDE = 4000   # 크롭이 지나치게 크면 OCR이 느려지거나 내부에서 터진다
+                       # (실측: 30MP 입력에서 RapidOCR이 ResizeImgError를 냄)
+
 def upscale_small(crop, target_h=100):
     """작은 크롭은 OCR 인식률이 급락하므로 확대한다."""
     h, w = crop.shape[:2]
+    if h and max(h, w) > MAX_CROP_SIDE:
+        s = MAX_CROP_SIDE / max(h, w)
+        crop = cv2.resize(crop, (max(1,int(w*s)), max(1,int(h*s))), interpolation=cv2.INTER_AREA)
+        h, w = crop.shape[:2]
     if h >= target_h or h == 0: return crop
     s = target_h / h
-    return cv2.resize(crop, (int(w*s), int(h*s)), interpolation=cv2.INTER_CUBIC)
+    out = cv2.resize(crop, (int(w*s), int(h*s)), interpolation=cv2.INTER_CUBIC)
+    if max(out.shape[:2]) > MAX_CROP_SIDE:
+        s2 = MAX_CROP_SIDE / max(out.shape[:2])
+        out = cv2.resize(out, (max(1,int(out.shape[1]*s2)), max(1,int(out.shape[0]*s2))), interpolation=cv2.INTER_AREA)
+    return out
+
+
+def _sort_reading_order(items):
+    """검출 순서가 아니라 사람이 읽는 순서로(위→아래, 왼→오) 정렬.
+
+    정렬 안 하면 '2026 08 03'(실제 03 08 2026)처럼 날짜 조각 순서가 뒤바뀐다.
+    같은 줄 판정 기준은 박스 높이의 60%.
+    """
+    if not items:
+        return items
+    hs = [max(1.0, b[2][1] - b[0][1]) for _, b in items]
+    tol = 0.6 * (sum(hs) / len(hs))
+    items = sorted(items, key=lambda it: (it[1][0][1] + it[1][2][1]) / 2)
+    lines, cur, cur_y = [], [], None
+    for it in items:
+        yc = (it[1][0][1] + it[1][2][1]) / 2
+        if cur_y is None or abs(yc - cur_y) <= tol:
+            cur.append(it)
+            cur_y = yc if cur_y is None else (cur_y + yc) / 2
+        else:
+            lines.append(cur)
+            cur, cur_y = [it], yc
+    lines.append(cur)
+    out = []
+    for ln in lines:
+        out.extend(sorted(ln, key=lambda it: it[1][0][0]))
+    return out
+
+
+def _filled(p):
+    """연·월·일 중 몇 개를 채웠는지. 채점이 항목별 부분점수라 이게 곧 점수다."""
+    return sum(1 for k in ("year", "month", "day") if p.get(k, "NONE") != "NONE")
 
 
 def make_abs_cfg(cfg_path):
@@ -158,7 +201,9 @@ class Engine:
 
     def read(self, img):
         res, _ = self.ocr(img)
-        return " ".join(x[1] for x in (res or []))
+        if not res: return ""
+        items = [(x[1], x[0]) for x in res]  # (text, box)
+        return " ".join(t for t, _ in _sort_reading_order(items))
 
     def read_nodet(self, img):
         """RapidOCR 자체 텍스트탐지 없이 크롭 전체를 한 줄로 바로 인식."""
@@ -171,6 +216,8 @@ class Engine:
         H, W = img.shape[:2]
         det = self.detect(img)
         info = {n: len(v) for n, v in det.items()}
+        info["route"] = "none"
+        info["text"] = ""
 
         # 관심영역: full 우선, 없으면 date+due 합집합
         rois = []
@@ -185,32 +232,36 @@ class Engine:
             c = img[y0:y1, x0:x1]
             if c.size: crops.append(upscale_small(c))
 
-        # 1차: 원본 크롭
-        text = " ".join(self.read(c) for c in crops)
-        parsed = extract_expiry_fields(text, from_crop=bool(crops))
-        info["route"] = "crop" if crops else "none"
-        info["text"] = text[:300]
+        # 이른 단계가 '연-월만' 같은 부분 답을 내도 거기서 멈추지 않는다. 멈추면
+        # 뒤 단계가 찾았을 완전한 날짜를 놓친다. 연·월·일을 다 채운 답이 나오면
+        # 그때 끊고, 아니면 끝까지 돌면서 가장 많이 채운 답을 남긴다.
+        best = dict(NONE_ROW)
+        def take(p, route, text):
+            nonlocal best
+            if _filled(p) > _filled(best):
+                best, info["route"], info["text"] = p, route, text[:300]
+            return _filled(p) == 3
 
-        # 2차: 실패 시 크롭에만 전처리(CLAHE+morph) 재시도
-        #      크롭 영역에만 걸면 배경 대비가 같이 올라가는 낭비가 없고 비용도 싸다
-        if parsed["final_date"] == "NONE" and crops:
+        if crops:
+            # 1차: 원본 크롭
+            text = " ".join(self.read(c) for c in crops)
+            if take(extract_expiry_fields(text, from_crop=True), "crop", text):
+                return best, info
+
+            # 2차: 크롭에만 전처리(CLAHE+morph) 재시도
+            #      크롭 영역에만 걸면 배경 대비가 같이 올라가는 낭비가 없고 비용도 싸다
             t2 = " ".join(self.read(enhance(c)) for c in crops)
-            p2 = extract_expiry_fields(t2, from_crop=True)
-            if p2["final_date"] != "NONE":
-                parsed, info["route"] = p2, "crop+pp"
-                info["text"] = t2[:300]
+            if take(extract_expiry_fields(t2, from_crop=True), "crop+pp", t2):
+                return best, info
 
-        # 3차: 도트프린터 날짜 전용 보정
-        if parsed["final_date"] == "NONE" and crops:
+            # 3차: 도트프린터 날짜 전용 보정
             t2b = " ".join(self.read(binarize_dilate(c)) for c in crops)
-            p2b = extract_expiry_fields(t2b, from_crop=True)
-            if p2b["final_date"] != "NONE":
-                parsed, info["route"] = p2b, "crop+dot"
-                info["text"] = t2b[:300]
+            if take(extract_expiry_fields(t2b, from_crop=True), "crop+dot", t2b):
+                return best, info
 
         # 4차: Det 우회 — date/due 타이트 박스(여유분 10%)를 RapidOCR 자체
         #      텍스트탐지 없이 바로 인식. 탐지가 놓치는 케이스 구제용
-        if parsed["final_date"] == "NONE" and (det["date"] or det["due"]):
+        if det["date"] or det["due"]:
             tight = []
             for box, _ in det["date"] + det["due"]:
                 x0,y0,x1,y1 = pad_clip(box, W, H, pad=0.10)
@@ -218,26 +269,20 @@ class Engine:
                 if c.size: tight.append(c)
             if tight:
                 t2c = " ".join(self.read_nodet(c) for c in tight)
-                p2c = extract_expiry_fields(t2c, from_crop=True)
-                if p2c["final_date"] != "NONE":
-                    parsed, info["route"] = p2c, "crop+nodet"
-                    info["text"] = t2c[:300]
+                if take(extract_expiry_fields(t2c, from_crop=True), "crop+nodet", t2c):
+                    return best, info
 
         # 5차: 그래도 실패 시 전체 이미지
-        if parsed["final_date"] == "NONE" and fallback:
+        if fallback:
             h,w = img.shape[:2]; s = 1600/max(h,w)
             full = cv2.resize(img,(round(w*s),round(h*s)),interpolation=cv2.INTER_AREA) if s<1 else img
             t3 = self.read(full)
-            p3 = extract_expiry_fields(t3)
-            if p3["final_date"] == "NONE":
-                t3 = self.read(enhance(full))      # 전체 이미지에도 전처리 재시도
-                p3 = extract_expiry_fields(t3)
-                if p3["final_date"] != "NONE": info["route"] = "full+pp"
-            elif p3["final_date"] != "NONE":
-                info["route"] = "fallback"
-            if p3["final_date"] != "NONE":
-                parsed = p3; info["text"] = t3[:300]
-        return parsed, info
+            if take(extract_expiry_fields(t3), "fallback", t3):
+                return best, info
+            t3b = self.read(enhance(full))         # 전체 이미지에도 전처리 재시도
+            take(extract_expiry_fields(t3b), "full+pp", t3b)
+
+        return best, info
 
 
 def main():
