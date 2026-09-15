@@ -10,8 +10,9 @@ main 파서를 복사해오지 않고 import로 가져다 씀. 그래야 main �
   1) 별칭 정규화 후 main 파서 (사용기한/품질유지기한 -> 소비기한)
   2) 실패하면 OCR 오독 글자를 고쳐서 main 파서 재시도
   3) 실패하면 구분자 없는 압축 표기 (30APR21 같은 것)
-  4) 실패하면 연-월만이라도 (일자가 아예 안 적힌 포장이 있음)
-  5) 그래도 실패하면 월-일만이라도 제출 (채점이 항목별 부분점수라 NONE은 확정 0점)
+  4) 실패하면 구분자 없는 전숫자 날짜 (20260516, 261030)
+  5) 실패하면 연-월만이라도 (일자가 아예 안 적힌 포장이 있음)
+  6) 그래도 실패하면 월-일만이라도 제출 (채점이 항목별 부분점수라 NONE은 확정 0점)
 """
 import os
 import sys
@@ -28,7 +29,8 @@ from date_parser import extract_expiry_fields as _extract, explain as _explain
 
 from ocr_normalize import normalize_ocr_text
 from partial_rescue import rescue_md
-from gap_fill import apply_aliases, try_month_year_only, try_compact_dmy
+from gap_fill import (apply_aliases, try_month_year_only, try_compact_dmy,
+                      try_compact_numeric)
 
 NONE4 = {"year": "NONE", "month": "NONE", "day": "NONE", "final_date": "NONE"}
 
@@ -67,6 +69,16 @@ def extract_expiry_fields(text: str, rescue: bool = True, from_crop: bool = Fals
             y, mo, d = got
             r = _mk(y, mo, d)
             r["_via"] = "gap_fill_compact_dmy"
+            return r
+
+    # 구분자 없는 전숫자 날짜(20260516 / 261030). 연-월만 뽑기보다 먼저 시도한다.
+    # 온전한 날짜가 나오면 그게 항상 낫기 때문이다.
+    for t in (fixed, alias, text):
+        got = try_compact_numeric(t, require_anchor=not from_crop)
+        if got:
+            y, mo, d = got
+            r = _mk(y, mo, d)
+            r["_via"] = "gap_fill_compact_numeric"
             return r
 
     for t in (fixed, alias, text):
