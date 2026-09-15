@@ -51,7 +51,7 @@ RELATIVE_EXPR_AS_NONE = False    # 미확정3: "제조일로부터 N개월"류�
 # ============================================================
 KW_CONSUME = ["소비기한"]
 KW_DISTRIB = ["유통기한"]
-KW_MFG = ["제조일자", "제조년월일", "제조일", "제조", "PROD", "PRD", "MFG"]
+KW_MFG = ["제조일자", "제조년월일", "제조일", "제조", "PROD", "PRD", "MFG", "PR0D"]  # PR0D: OCR이 PROD의 O를 0으로 자주 오독
 KW_EXP_EN = ["EXP"]
 ALL_KEYWORDS = KW_CONSUME + KW_DISTRIB + KW_MFG + KW_EXP_EN
 

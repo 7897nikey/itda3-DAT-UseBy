@@ -28,27 +28,42 @@
 
 ## 2. 우리 팀 파이프라인 개요
 
-두 단계로 구성된 하이브리드 구조입니다.
+**앞 단계가 실패한 것만 다음 단계로 넘기는 4단 폴백** 구조입니다. 보정을 전체 사진에 한꺼번에 걸면 원래 잘 읽히던 것까지 망가질 수 있는데, 실패분에만 걸면 그럴 일이 없습니다.
 
 ```
 입력 이미지
   │
-  ├─▶ ① YOLOv8n(ONNX) 으로 "소비기한" 문구 영역 탐지·크롭
-  │      │
-  │      ├─ 탐지 성공 → 크롭된 작은 영역만 EasyOCR로 인식 (빠르고 정확)
-  │      │
-  │      └─ 탐지 실패/저신뢰도 → ② 원본 전체 이미지를 리사이즈해 EasyOCR로 인식 (폴백)
+  ├─ [0] EXIF 회전 보정 — 세로로 찍었는데 파일엔 가로로 저장된 사진이 8.7%
+  │       있음. 안 맞추면 글자가 누운 채로 들어가 인식률이 반토막 남.
   │
-  └─▶ 인식된 텍스트를 date_parser.py(정규식 기반 규칙 파서)에 통과시켜
-       year / month / day / final_date 추출
+  ├─ [1] YOLO11n(4클래스: date/due/code/full)로 날짜 영역 탐지
+  │       code(품목보고번호·전화번호처럼 날짜로 헷갈리기 쉬운 숫자)를 따로
+  │       가르쳐서, 찾아낸 뒤 버리는 용도로 씀 — 날짜 오인식을 줄임.
+  │
+  ├─ [2] 그 영역만 원본 해상도에서 크롭 (여유분 30%) — 글자 크기 보존
+  │
+  ├─ [3] 4단 폴백으로 읽기 (실패한 것만 다음 단계로)
+  │       1차  크롭 그대로 RapidOCR
+  │       2차  크롭 + 사진 보정(CLAHE 대비 향상 + 끊긴 점 이어붙이기)
+  │       3차  원본 전체 사진
+  │       4차  원본 전체 사진 + 사진 보정
+  │
+  ├─ [4] 읽어낸 글자를 date_parser.py(정규식 규칙 파서)로 날짜 변환
+  │       실패한 건에만 보강 4겹을 추가로 태움(date_parser_plus.py):
+  │       별칭 통일(사용기한→소비기한) → OCR 오독 글자 교정 재시도 →
+  │       구분자 없는 압축 표기 → 연-월만이라도 추출
+  │
+  └─ [5] 그래도 실패하면 월-일만이라도 제출 — 채점이 항목별 부분점수라
+          NONE은 확정 0점, 틀려도 0점이라 찍는 쪽이 손해가 없음
+
+결과: image_id, year, month, day, final_date
 ```
 
-- **문자 인식(OCR)**: EasyOCR — 사전학습된 공개 모델을 그대로 사용(직접 학습 안 함)
-- **영역 탐지**: YOLOv8n — 팀이 직접 라벨링한 450장(`labeling/`, 제출물 아님)으로 **파인튜닝**한 2클래스(EXP=소비기한, MFG=제조일자) 검출기. 대회 규정상 "사전학습 공개 모델의 파인튜닝"은 허용되는 방식입니다. 검증셋(45장) 기준 mAP50 0.924.
-  - 학습·데이터셋 코드는 `yolo_train/`에 있으며, 학습 자체는 EasyOCR 실행 환경과 별도인 `yolo_venv`(로컬 전용, 저장소에 포함 안 됨)에서 진행했습니다. 채점에는 영향 없습니다.
-  - 학습된 모델은 `weights/yolo_exp_mfg.onnx`로 내보내(export) 두었습니다. `torch`/`ultralytics` 없이 `onnxruntime`만으로 추론하며, 이는 EasyOCR가 요구하는 torch 버전과의 충돌을 피하기 위함입니다.
-- **날짜 파싱**: `date_parser.py` — 정규식 기반 규칙 파서(새 모델 학습 아님). 부터/까지 범위, 제조일로부터 N개월 등 상대기간 계산, 2자리/4자리 연도, 압축 표기(DDMMYY), 영문 월(JAN~DEC) 등 실측으로 확인된 표기 패턴을 처리합니다.
-- **실측 결과** (팀 자체 라벨링 450장 기준, 직전 전체 파이프라인 검증): 완전일치 약 44%, 평균 처리속도 약 2초/장(500장 기준 예산 2400초 대비 여유 있음).
+- **문자 인식(OCR)**: [RapidOCR](https://github.com/RapidAI/RapidOCR) — `onnxruntime`만으로 동작, torch 불필요. 인식 모델은 한국어 특화 사전학습 공개 모델(`korean_PP-OCRv5_rec_mobile.onnx`)을 그대로 사용(직접 학습 안 함).
+- **영역 탐지**: YOLO11n — 운영진이 배포한 `archive.zip` 라벨(학습 2,892장 / 검증 808장)로 파인튜닝한 4클래스(date/due/code/full) 검출기. **팀이 직접 라벨링한 손라벨 450장은 학습에서 완전히 제외**하고 성능 측정 전용으로만 씀(학습 데이터 유출 방지). 검증 808장 기준 평균 mAP50 0.916. 원래 `.pt`(torch)로 내보냈던 걸 `region_best.onnx`로 다시 내보내 RapidOCR과 같은 onnxruntime 엔진으로 통일함 — torch 의존성이 완전히 사라지고 검출 속도가 7.1배 빨라짐(검출 결과는 동일).
+- **날짜 파싱**: `date_parser.py` — 정규식 기반 규칙 파서(새 모델 학습 아님). 부터/까지 범위, 제조일로부터 N개월 등 상대기간 계산, 2자리/4자리 연도, 압축 표기(DDMMYY), 영문 월(JAN~DEC) 등 실측으로 확인된 표기 패턴을 처리한다. 그 위에 `date_parser_plus.py`가 실패건에만 보강 레이어를 얹는다(원래 맞던 건은 안 건드림).
+- **실측 결과** (팀 손라벨 449장, 학습에 안 쓴 완전히 독립된 검증셋): **완전일치 75.72%**, 항목별 부분점수(연/월/일 평균) 81.89%, 응답률 91.5%. 속도는 장당 0.599초 — 500장 환산 시 예산 2400초의 12.5%만 사용.
+- 자세한 실측 분석(어디서 시간이 쓰이는지, 뭘 시도했다가 소용없었는지, 남은 실패 원인 등)은 [`docs/rapidocr_notes.md`](docs/rapidocr_notes.md)에 정리되어 있음.
 
 ---
 
@@ -57,22 +72,40 @@
 ```
 itda3-DAT-UseBy/
 ├── predict.ipynb            # 메인 추론 노트북 (운영진 채점용 필수)
-├── date_parser.py           # 정규식 기반 날짜 파서 (predict.ipynb가 import함, 필수)
-├── requirements.txt         # 실행 환경 패키지 목록 (필수)
-├── README.md                # 본 문서
+├── pipeline.py               # 검출-크롭-인식-파싱 전체를 묶은 본체
+├── date_parser.py            # 정규식 기반 날짜 파서 (핵심, 필수)
+├── date_parser_plus.py       # date_parser.py를 가져다 쓰고 실패분에 보강을 더하는 층
+├── gap_fill.py                # date_parser.py가 못 잡는 표기 보강
+├── ocr_normalize.py           # OCR이 헷갈린 글자(O/0, I/1 등) 교정
+├── partial_rescue.py          # 완전 실패 시 월-일만이라도 건짐
+├── preprocess.py              # 대비 향상(CLAHE) + 끊긴 글자 이어붙이기
+├── config_ko.yaml             # RapidOCR 설정
+├── evaluate.py                 # 예측 CSV와 정답 라벨을 맞춰 점수 계산 (팀 자체 검증용)
+├── requirements.txt           # 실행 환경 패키지 목록 (필수)
+├── README.md                  # 본 문서
 ├── .gitignore
-├── download_weights.sh      # EasyOCR 사전학습 가중치 다운로드 스크립트
+├── docs/
+│   └── rapidocr_notes.md      # 파이프라인 설계·실측 분석 상세 노트
 ├── weights/
 │   ├── .gitkeep
-│   ├── yolo_exp_mfg.onnx    # 팀이 라벨링·파인튜닝한 YOLO 모델 (직접 커밋됨, 다운로드 불필요)
-│   ├── craft_mlt_25k.pth    # EasyOCR 가중치 (download_weights.sh로 받음, 커밋 안 됨)
-│   └── korean_g2.pth        # EasyOCR 가중치 (download_weights.sh로 받음, 커밋 안 됨)
-├── yolo_train/               # YOLO 학습·검증용 스크립트 (채점 대상 아님, 참고용)
-│   ├── build_dataset.py     # 팀 라벨링 결과 → YOLO 학습 포맷 변환
-│   ├── train.py             # yolov8n 파인튜닝
-│   ├── export_onnx.py       # 학습된 모델을 ONNX로 내보내기
-│   └── predict_sample.py    # 검증셋에 예측 그려서 눈으로 확인
-└── labeling/                 # 팀 자체 라벨링 산출물 (제출물 아님, gitignore 대상)
+│   ├── region_best.onnx            # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
+│   └── korean_PP-OCRv5_rec_mobile.onnx  # RapidOCR 한국어 인식 모델 (공개 모델, 오프라인 대비 커밋)
+└── custom_data/                # 가산점용 팀 자체 수집 데이터 (평가 전용, 학습 미사용)
+    ├── images/                 # 직접 촬영한 소비기한 사진 97장 (cust_0001 ~ cust_0098)
+    ├── labels.csv              # ★ 정답 라벨 — image_id, year, month, day, final_date, status, 난이도 태그
+    ├── meta.csv                # 수집 메타 (제품군, 표기 용어, 인쇄 방식, 원본 제원)
+    ├── parser_cases.csv        # 이미지 없이 돌리는 날짜 파서 회귀 케이스
+    ├── docs/                   # 라벨 판정 규칙 · 수집 설계 근거
+    └── tools/                  # 전처리 · 라벨 검증 스크립트
+```
+
+`custom_data/`: 팀이 직접 촬영·라벨링한 자체 수집 데이터 **97장**. 정답 라벨은 `custom_data/labels.csv`, 사진은 `custom_data/images/`이며, 수집 설계와 라벨 판정 규칙은 `custom_data/docs/`에 있습니다. **학습에는 쓰지 않은 평가 전용 셋**입니다.
+
+두 묶음으로 나뉘고 노리는 실패 모드가 다릅니다. **배치 1**(`cust_0069`~`0098`, 30장)은 의약품 PTP·사용기한, 영양제, 화장품·앰플, 일본 `賞味期限`, 유럽 `BEST BEFORE DD/MM/YYYY` 등 **표기 체계**를 때리고, **배치 2**(`cust_0001`~`0068`, 67장)는 편의점 현장에서 찍은 뚜껑 각인·원형 곡면·도트 매트릭스·날짜+시각+로트 동시 인쇄 등 **촬영 조건**을 때립니다. 성격이 다르므로 합산 점수로 보고하지 않습니다.
+
+```bash
+python pipeline.py --input_dir custom_data/images --output_path pred_custom.csv --weights weights/region_best.onnx
+python evaluate.py pred_custom.csv custom_data/labels.csv "custom_data"
 ```
 
 ---
@@ -81,32 +114,28 @@ itda3-DAT-UseBy/
 
 ### 1) 가상환경 구축 및 패키지 설치
 
-```
+````
 git clone <본인 팀 저장소 URL>
 cd <저장소 디렉토리>
 pip install -r requirements.txt
-```
+````
 
 ### 2) 가중치 파일 설정
 
-- **EasyOCR 가중치**: `download_weights.sh`를 실행하면 `./weights`에 자동으로 받아집니다(용량이 커서 Git에 커밋하지 않음).
-  ```
-  bash download_weights.sh
-  ```
-- **YOLO 가중치**(`weights/yolo_exp_mfg.onnx`): 팀이 직접 학습한 작은 모델(약 12MB)이라 저장소에 이미 커밋되어 있습니다. 별도로 받을 필요 없습니다.
+용량이 큰 모델 가중치 파일(`.pt`, `.pth`, `.safetensors` 등)은 Git에 직접 푸시하지 마시고, Google Drive, HuggingFace 링크 또는 Release Assets를 통해 `download_weights.sh` 스크립트 등으로 내려받도록 설정하세요.
 
 ### 3) 채점 재현성 검증 (운영진 채점 표준 명령어)
 
 운영진은 Standard 4-Core vCPU 환경에서 아래 명령어를 실행하여 순차 실행(Run All) 및 채점을 진행합니다.
 
-```
+````
 export ITDA_INPUT_DIR=./val_images
 export ITDA_OUTPUT_PATH=./submission.csv
 
 jupyter nbconvert --to notebook --execute predict.ipynb \
     --ExecutePreprocessor.timeout=2400 \
     --output /tmp/executed.ipynb
-```
+````
 
 ---
 
@@ -124,26 +153,18 @@ jupyter nbconvert --to notebook --execute predict.ipynb \
 
 - EasyOCR, PaddleOCR 등 상당수 라이브러리는 최초 실행 시 가중치를 인터넷에서 **자동 다운로드** 합니다. 오프라인 환경에서는 이 단계가 실패해 실행 오류(정량 0점)가 발생합니다.
 - 모든 가중치는 **노트북 실행 전에 로컬에 존재**해야 합니다.
-  - `download_weights.sh` 는 채점 실행 **전에** 운영진이 1회 실행합니다. (EasyOCR 가중치용)
-  - `weights/yolo_exp_mfg.onnx`는 저장소에 이미 커밋되어 있어 별도 다운로드 단계가 필요 없습니다.
+  - `download_weights.sh` 는 채점 실행 **전에** 운영진이 1회 실행합니다.
   - `predict.ipynb` 의 Run All **도중에** 다운로드하는 코드는 동작하지 않습니다.
 
 EasyOCR 사용 예시:
 
-```python
+````python
 reader = easyocr.Reader(
-    ['ko', 'en'], gpu=False,
+    ['en'], gpu=False,
     model_storage_directory='./weights',
     download_enabled=False,   # 오프라인 강제
 )
-```
-
-YOLO(ONNX) 사용 예시:
-
-```python
-import onnxruntime as ort
-session = ort.InferenceSession('./weights/yolo_exp_mfg.onnx', providers=['CPUExecutionProvider'])
-```
+````
 
 네트워크를 끄고 Run All 이 끝까지 돌아가면 통과입니다. 제출 전 반드시 한 번 검증해 보세요.
 
@@ -162,4 +183,3 @@ session = ort.InferenceSession('./weights/yolo_exp_mfg.onnx', providers=['CPUExe
 4. **결과 스키마 준수**: 누락된 컬럼이 없도록 `image_id, year, month, day, final_date` 5개 컬럼 스키마를 엄격히 지켜주세요.
 5. **오프라인 실행 검증**: 네트워크 차단 상태에서 Run All 이 완주하는지 확인하세요.
 6. **저장소 접근 권한**: Public 설정 또는 운영진 계정 Collaborator 초대를 완료하세요.
-7. **`date_parser.py`와 `weights/yolo_exp_mfg.onnx`가 저장소에 커밋되어 있는지 확인**: 둘 다 `predict.ipynb`가 직접 참조하는 필수 파일입니다. 빠지면 `ImportError`/`FileNotFoundError`로 실행이 처음부터 실패합니다.
