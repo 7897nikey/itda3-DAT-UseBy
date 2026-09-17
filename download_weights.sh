@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 가중치 준비 스크립트 (운영진 채점 실행 전 1회)
 #
-# 이 저장소는 가중치를 내려받지 않습니다. 두 파일 모두 저장소에 직접 커밋되어
-# 있고 합쳐서 23MB입니다. 채점 서버가 인터넷이 차단된 환경이라, 실행 중에
+# 이 저장소는 가중치를 내려받지 않습니다. 세 파일 모두 저장소에 직접 커밋되어
+# 있고 합쳐서 96MB입니다. 채점 서버가 인터넷이 차단된 환경이라, 실행 중에
 # 무엇이든 받아오는 구조 자체를 두지 않는 쪽을 택했습니다.
 #
 # 그래서 이 스크립트가 하는 일은 내려받기가 아니라 '있어야 할 것이 있는지'
@@ -14,7 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 EXPECT_REGION="c371e3c8346d0b3c67d51c5a157f72b79a8ad35202e467d6a53f7bddc81a55f6"
-EXPECT_REC="cd6e2ea50f6943ca7271eb8c56a877a5a90720b7047fe9c41a2e541a25773c9b"
+EXPECT_REC="eef444829dbbe18d7fea59a3f6eb75647518d2b3a9568d27c92e42940204894b"
+EXPECT_REC_PREV="cd6e2ea50f6943ca7271eb8c56a877a5a90720b7047fe9c41a2e541a25773c9b"
 
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -44,6 +45,7 @@ check() {
 }
 
 echo "가중치 확인 (네트워크 사용 안 함)"
-check "weights/region_best.onnx"             "$EXPECT_REGION" "YOLO11n 영역 검출기"
-check "weights/korean_PP-OCRv5_rec_mobile.onnx" "$EXPECT_REC"  "RapidOCR 한국어 인식 모델"
-echo "두 개 모두 준비됨. predict.ipynb 를 실행하셔도 됩니다."
+check "weights/region_best.onnx"                "$EXPECT_REGION"   "YOLO11n 영역 검출기"
+check "weights/PP-OCRv6_rec_medium.onnx"       "$EXPECT_REC"      "인식 모델 (현역)"
+check "weights/korean_PP-OCRv5_rec_mobile.onnx" "$EXPECT_REC_PREV" "인식 모델 (이전본, 비교용)"
+echo "준비됨. predict.ipynb 를 실행하셔도 됩니다."

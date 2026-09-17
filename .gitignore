@@ -6,8 +6,11 @@
 *.bin
 weights/*
 !weights/.gitkeep
-# 오프라인 채점에 필요해서 예외
+# 오프라인 채점에 필요해서 예외.
+# 여기에 안 적으면 weights/* 규칙에 걸려 조용히 빠진 채로 커밋된다.
+# 가중치를 바꾸면 이 목록과 download_weights.sh 의 sha256 을 같이 고칠 것.
 !weights/region_best.onnx
+!weights/PP-OCRv6_rec_medium.onnx
 !weights/korean_PP-OCRv5_rec_mobile.onnx
 
 # ===== 데이터 및 결과물 =====

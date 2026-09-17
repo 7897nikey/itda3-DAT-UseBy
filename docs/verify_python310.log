@@ -89,8 +89,9 @@ webencodings==0.6.1
 === 3) bash download_weights.sh ===
 가중치 확인 (네트워크 사용 안 함)
 [확인] YOLO11n 영역 검출기                 10.3MB  sha256 일치
-[확인] RapidOCR 한국어 인식 모델         12.9MB  sha256 일치
-두 개 모두 준비됨. predict.ipynb 를 실행하셔도 됩니다.
+[확인] 인식 모델 (현역)                   73.1MB  sha256 일치
+[확인] 인식 모델 (이전본, 비교용)     12.9MB  sha256 일치
+준비됨. predict.ipynb 를 실행하셔도 됩니다.
 
 === 4) ITDA_INPUT_DIR=./sample jupyter nbconvert --to notebook --execute predict.ipynb ===
 [NbConvertApp] Converting notebook predict.ipynb to notebook
@@ -99,7 +100,7 @@ webencodings==0.6.1
 [NbConvertApp] Writing 17773 bytes to /tmp/verify_executed.ipynb
 
 === 결과 ===
-종료코드 0 / 소요 22초 (5장)
+종료코드 0 / 소요 25초 (5장)
 --- /tmp/verify_out.csv ---
 image_id,year,month,day,final_date
 000509,2026,09,01,2026-09-01

@@ -55,7 +55,7 @@ Rec:
     use_cuda: false
     use_dml: false
 
-    model_path: ./weights/korean_PP-OCRv5_rec_mobile.onnx
+    model_path: ./weights/PP-OCRv6_rec_medium.onnx
 
     rec_img_shape: [3, 48, 320]
     rec_batch_num: 6
