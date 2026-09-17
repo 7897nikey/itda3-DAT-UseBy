@@ -36,6 +36,7 @@ predict.ipynb 에서 `from date_parser import extract_expiry_fields` 로 불러 
 되돌리면 된다 — 계산 로직 자체를 지울 필요 없음.
 """
 import re
+import os
 from datetime import date, timedelta
 import calendar
 
@@ -227,6 +228,36 @@ def _normalize_2digit_year(yy):
     return 2000 + yy
 
 
+# ── 2자리 연도 표기에서 어느 자리가 연도인가 ──
+# "24/12/21" 은 연-월-일로 읽으면 2024-12-21, 일-월-연으로 읽으면 2021-12-24 다.
+# 둘 다 달력상 유효해서 숫자만으로는 구분이 안 된다. 예전에는 이럴 때 무조건
+# 연-월-일을 골랐는데, 실측 실패 122건 중 9건이 전부 이 지점에서 틀렸다.
+#
+# 손라벨의 연도 분포가 심하게 치우쳐 있다는 점을 쓴다. 상품 사진이 2025년
+# 하반기에 찍혔으니 소비기한은 2021~2022(이미 지난 것)와 2026(살아 있는 것)에
+# 몰리고, 2016·2017·2019·2024·2030 같은 해는 거의 나오지 않는다.
+# 아래 분포는 A~C + D+E 741건에서만 뽑았다. 배치 F 와 홀드아웃 G 는 뺐다 —
+# 판단에 쓰는 수치를 평가에 쓸 집합에서 만들면 안 되기 때문이다.
+_YEAR_PRIOR = {
+    2019: 0.0094, 2020: 0.0499, 2021: 0.3900, 2022: 0.2051, 2023: 0.0526,
+    2024: 0.0067, 2025: 0.0513, 2026: 0.1849, 2027: 0.0418, 2028: 0.0081,
+}
+_YEAR_PRIOR_FLOOR = 0.002   # 분포에 없는 해(2016·2030 등)에 줄 최소값
+
+# 뒤집으려면 상대 해석보다 이만큼은 그럴듯해야 한다. 1.0 으로 두면 근소한
+# 차이에도 뒤집혀서 원래 맞던 것까지 건드린다. 실측으로 정한 값이다.
+_ORDER_FLIP_RATIO = float(os.environ.get("ITDA_ORDER_FLIP_RATIO", "6.0"))
+
+
+def _year_prior(y):
+    return _YEAR_PRIOR.get(y, _YEAR_PRIOR_FLOOR)
+
+
+def _prefer_dmy_by_year_prior(y_ymd, y_dmy):
+    """연-월-일 해석과 일-월-연 해석이 둘 다 유효할 때 뒤집을지 판단."""
+    return _year_prior(y_dmy) >= _ORDER_FLIP_RATIO * _year_prior(y_ymd)
+
+
 # ── 라벨에 찍힌 "읽는 법" 안내 ──
 # 소비기한 문구 근처가 아니라 라벨 설명문 어딘가에 표기 순서를 직접
 # 알려주는 경우가 실제로 많다(예: 000379.jpg "읽는 법 (일월년 순)",
@@ -278,6 +309,12 @@ def _find_full_candidates(text):
             # 라벨에 읽는 법이 명시돼 있으면 그걸 따르고, 없으면 기존
             # 다수결(연-월-일 우선, "읽는법:년월일순" 실측 근거)을 유지한다.
             if order_hint == "dmy":
+                spans.append((m.start(), m.end(), y_dmy, mo, yy))
+            elif order_hint == "ymd":
+                spans.append((m.start(), m.end(), y_ymd, mo, d))
+            elif _prefer_dmy_by_year_prior(y_ymd, y_dmy):
+                # 라벨에 읽는 법이 없을 때. 연-월-일로 읽은 연도가 이 데이터셋에
+                # 거의 나오지 않는 해인데 뒤집으면 흔한 해가 되는 경우만 뒤집는다.
                 spans.append((m.start(), m.end(), y_dmy, mo, yy))
             else:
                 spans.append((m.start(), m.end(), y_ymd, mo, d))
