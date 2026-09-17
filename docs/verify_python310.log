@@ -1,0 +1,116 @@
+
+=== 환경 ===
+Darwin 25.6.0 arm64
+ProductName:		macOS ProductVersion:		26.7 BuildVersion:		25G229 
+Python 3.10.21
+
+=== 1) python3.10 -m venv .venv && source .venv/bin/activate ===
+Python 3.10.21
+
+=== 2) pip install -r requirements.txt ===
+Requirement already satisfied: pip in ./.venv_verify/lib/python3.10/site-packages (26.2.1)
+Installing collected packages: pytz, pure-eval, ptyprocess, mpmath, flatbuffers, webencodings, wcwidth, tzdata, typing-extensions, traitlets, tqdm, tornado, sympy, soupsieve, six, rpds-py, pyzmq, PyYAML, pygments, pyclipper, psutil, protobuf, platformdirs, Pillow, pexpect, parso, pandocfilters, packaging, numpy, nest-asyncio, markupsafe, jupyterlab-pygments, humanfriendly, fastjsonschema, executing, defusedxml, decorator, debugpy, comm, attrs, asttokens, appnope, tinycss2, stack_data, Shapely, referencing, python-dateutil, prompt_toolkit, opencv-python, mistune, matplotlib-inline, jupyter-core, jinja2, jedi, exceptiongroup, coloredlogs, bleach, beautifulsoup4, pandas, onnxruntime, jupyter-client, jsonschema-specifications, ipython, rapidocr-onnxruntime, jsonschema, ipykernel, nbformat, nbclient, nbconvert
+
+Successfully installed Pillow-10.3.0 PyYAML-6.0.3 Shapely-2.1.2 appnope-1.0.0 asttokens-3.0.2 attrs-26.1.0 beautifulsoup4-4.15.0 bleach-6.4.0 coloredlogs-15.0.1 comm-0.2.3 debugpy-1.8.22 decorator-5.3.1 defusedxml-0.7.1 exceptiongroup-1.3.1 executing-2.2.1 fastjsonschema-2.22.2 flatbuffers-25.12.19 humanfriendly-10.0 ipykernel-6.29.4 ipython-8.39.0 jedi-0.20.0 jinja2-3.1.6 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 jupyter-client-8.10.0 jupyter-core-5.9.1 jupyterlab-pygments-0.3.0 markupsafe-3.0.3 matplotlib-inline-0.2.2 mistune-3.3.4 mpmath-1.3.0 nbclient-0.11.0 nbconvert-7.16.4 nbformat-5.11.1 nest-asyncio-1.6.0 numpy-1.26.4 onnxruntime-1.23.2 opencv-python-4.11.0.86 packaging-26.3 pandas-2.2.2 pandocfilters-1.5.1 parso-0.8.7 pexpect-4.9.0 platformdirs-4.11.9 prompt_toolkit-3.0.53 protobuf-7.36.1 psutil-7.2.2 ptyprocess-0.7.0 pure-eval-0.2.4 pyclipper-1.4.0 pygments-2.21.0 python-dateutil-2.9.0.post0 pytz-2026.3.post1 pyzmq-27.2.0 rapidocr-onnxruntime-1.4.4 referencing-0.37.0 rpds-py-0.30.0 six-1.17.0 soupsieve-2.9.2 stack_data-0.6.3 sympy-1.14.0 tinycss2-1.5.1 tornado-6.5.10 tqdm-4.70.1 traitlets-5.16.1 typing-extensions-4.16.0 tzdata-2026.4 wcwidth-0.8.3 webencodings-0.6.1
+
+=== 설치된 패키지 ===
+appnope==1.0.0
+asttokens==3.0.2
+attrs==26.1.0
+beautifulsoup4==4.15.0
+bleach==6.4.0
+coloredlogs==15.0.1
+comm==0.2.3
+debugpy==1.8.22
+decorator==5.3.1
+defusedxml==0.7.1
+exceptiongroup==1.3.1
+executing==2.2.1
+fastjsonschema==2.22.2
+flatbuffers==25.12.19
+humanfriendly==10.0
+ipykernel==6.29.4
+ipython==8.39.0
+jedi==0.20.0
+Jinja2==3.1.6
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+jupyter_client==8.10.0
+jupyter_core==5.9.1
+jupyterlab_pygments==0.3.0
+MarkupSafe==3.0.3
+matplotlib-inline==0.2.2
+mistune==3.3.4
+mpmath==1.3.0
+nbclient==0.11.0
+nbconvert==7.16.4
+nbformat==5.11.1
+nest-asyncio==1.6.0
+numpy==1.26.4
+onnxruntime==1.23.2
+opencv-python==4.11.0.86
+packaging==26.3
+pandas==2.2.2
+pandocfilters==1.5.1
+parso==0.8.7
+pexpect==4.9.0
+pillow==10.3.0
+pip==26.2.1
+platformdirs==4.11.9
+prompt_toolkit==3.0.53
+protobuf==7.36.1
+psutil==7.2.2
+ptyprocess==0.7.0
+pure_eval==0.2.4
+pyclipper==1.4.0
+Pygments==2.21.0
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+PyYAML==6.0.3
+pyzmq==27.2.0
+rapidocr-onnxruntime==1.4.4
+referencing==0.37.0
+rpds-py==0.30.0
+setuptools==84.0.0
+shapely==2.1.2
+six==1.17.0
+soupsieve==2.9.2
+stack-data==0.6.3
+sympy==1.14.0
+tinycss2==1.5.1
+tornado==6.5.10
+tqdm==4.70.1
+traitlets==5.16.1
+typing_extensions==4.16.0
+tzdata==2026.4
+wcwidth==0.8.3
+webencodings==0.6.1
+
+=== 3) bash download_weights.sh ===
+가중치 확인 (네트워크 사용 안 함)
+[확인] YOLO11n 영역 검출기                 10.3MB  sha256 일치
+[확인] RapidOCR 한국어 인식 모델         12.9MB  sha256 일치
+두 개 모두 준비됨. predict.ipynb 를 실행하셔도 됩니다.
+
+=== 4) ITDA_INPUT_DIR=./sample jupyter nbconvert --to notebook --execute predict.ipynb ===
+[NbConvertApp] Converting notebook predict.ipynb to notebook
+<repo>/.venv_verify/lib/python3.10/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 17773 bytes to /tmp/verify_executed.ipynb
+
+=== 결과 ===
+종료코드 0 / 소요 22초 (5장)
+--- /tmp/verify_out.csv ---
+image_id,year,month,day,final_date
+000509,2026,09,01,2026-09-01
+000567,2025,10,29,2025-10-29
+000569,2025,11,02,2025-11-02
+000600,2026,08,31,2026-08-31
+000606,2026,10,01,2026-10-01
+--- docs/sample_expected.csv (정답) ---
+image_id,year,month,day,final_date
+000509,2026,09,01,2026-09-01
+000567,2025,10,29,2025-10-29
+000569,2025,11,02,2025-11-02
+000600,2026,08,31,2026-08-31
+000606,2026,10,01,2026-10-01

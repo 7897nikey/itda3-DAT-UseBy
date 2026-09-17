@@ -1,6 +1,10 @@
 # ITDA 3rd 학술제 - 소비기한 추출 (한국외대 DAT · UseBy팀) 📌
 
-본 저장소는 **제3회 ITDA 연합학술제** 예선 제출용 저장소입니다. 공식 제출 템플릿을 기반으로, 우리 팀이 실제로 구현한 파이프라인 내용을 반영해 두었습니다.
+본 저장소는 **제3회 ITDA 연합학술제** 제출용 저장소입니다. 공식 제출 템플릿을 기반으로, 우리 팀이 실제로 구현한 파이프라인 내용을 반영해 두었습니다.
+
+> **본선 검수 절차는 [4. 시작하기 및 실행 방법](#4-시작하기-및-실행-방법)에 그대로 적어 두었습니다.**
+> 빈 Python 3.10 가상환경에서 네 단계를 처음부터 끝까지 돌린 로그가
+> [`docs/verify_python310.log`](docs/verify_python310.log) 에 있습니다.
 
 ---
 
@@ -72,12 +76,19 @@
 
   | 집합 | n | 부분점수 | 완전일치 | 응답률 |
   |---|---|---|---|---|
-  | 전체 | 904 | **85.07%** | 80.53% | 91.8% |
-  | A–C (검출기 학습 + 개발에 노출됨) | 449 | 89.09% | 84.41% | 95.8% |
-  | D+E (튜닝 판단용) | 303 | 79.43% | 74.26% | 87.5% |
-  | **F (한 번도 보지 않음)** | 152 | **84.43%** | 81.58% | 88.8% |
+  | 전체 | 904 | **84.66%** | 80.20% | 91.7% |
+  | A–C (검출기 학습 + 개발에 노출됨) | 449 | 88.94% | 84.41% | 96.0% |
+  | D+E (튜닝 판단용) | 303 | 78.88% | 73.93% | 87.1% |
+  | **F (한 번도 보지 않음)** | 152 | **83.55%** | 80.26% | 88.2% |
 
-  속도는 장당 0.56–0.63초 — 500장 환산 시 예산 2400초의 12–13%.
+  속도는 장당 **0.525초** — 500장 환산 262초로 예산 2500초의 10.5%.
+
+  위 수치는 `requirements.txt` 가 지정하는 **바로 그 환경**(Python 3.10, numpy 1.26.4,
+  opencv-python 4.11.0.86, onnxruntime 1.23.2)에서 다시 잰 값입니다. 이전 측정은
+  개발 머신에 깔려 있던 다른 버전 조합(Python 3.11 / numpy 2.x)에서 나온 85.07%
+  였는데, 짝지은 비교로 904건 중 880건이 동일하고 개선 11 / 퇴행 13 (p=0.84)라
+  차이는 노이즈였습니다. **채점 환경과 같은 조건에서 나온 84.66% 를 기준 수치로
+  씁니다.**
 
   **보고할 숫자는 전체 85.07%입니다.** 다만 A–C 449장은 검출기 박스 라벨링에 쓴 이미지이자
   개발 과정에서 실패 사례를 반복해 들여다보며 규칙을 고친 집단이라 점수가 부풀려져 있습니다.
@@ -111,11 +122,15 @@ itda3-DAT-UseBy/
 ├── evaluate.py                 # 예측 CSV와 정답 라벨을 맞춰 점수 계산 (팀 자체 검증용)
 ├── split_eval.py               # 홀드아웃 규약대로 집합을 갈라 채점 (F는 --show-f 필요)
 ├── splits/                     # 홀드아웃 규약과 분할 정의
-├── requirements.txt           # 실행 환경 패키지 목록 (필수)
+├── requirements.txt           # 실행 환경 패키지 목록 (필수, cp310 기준으로 검증)
+├── download_weights.sh        # 동봉 가중치 무결성 확인 (네트워크 사용 안 함)
+├── sample/                    # 검수 절차용 최소 입력 5장
 ├── README.md                  # 본 문서
 ├── .gitignore
 ├── docs/
-│   └── rapidocr_notes.md      # 파이프라인 설계·실측 분석 상세 노트
+│   ├── rapidocr_notes.md      # 파이프라인 설계·실측 분석 상세 노트
+│   ├── sample_expected.csv    # sample/ 5장의 정답
+│   └── verify_python310.log   # 빈 Python 3.10 환경 검수 4단계 실행 로그
 ├── weights/
 │   ├── .gitkeep
 │   ├── region_best.onnx            # 팀이 학습한 YOLO11n 검출 모델 (직접 커밋)
@@ -150,22 +165,54 @@ cd itda3-DAT-UseBy
 pip install -r requirements.txt
 ````
 
-### 2) 가중치 파일 설정
+### 2) 가중치 준비
 
-용량이 큰 모델 가중치 파일(`.pt`, `.pth`, `.safetensors` 등)은 Git에 직접 푸시하지 마시고, Google Drive, HuggingFace 링크 또는 Release Assets를 통해 `download_weights.sh` 스크립트 등으로 내려받도록 설정하세요.
+```bash
+bash download_weights.sh
+```
 
-### 3) 채점 재현성 검증 (운영진 채점 표준 명령어)
+**이 스크립트는 아무것도 내려받지 않습니다.** 가중치 두 개(합 23MB)가 저장소에
+직접 커밋되어 있습니다. 채점 서버가 인터넷이 차단된 환경이라, 실행 중에 무엇이든
+받아오는 구조 자체를 두지 않는 쪽을 택했습니다.
 
-운영진은 Standard 4-Core vCPU 환경에서 아래 명령어를 실행하여 순차 실행(Run All) 및 채점을 진행합니다.
+그래서 스크립트가 하는 일은 **있어야 할 것이 있는지 확인하는 것**입니다.
+두 파일의 sha256 을 제출 시점 값과 대조하고, 누락되거나 내용이 바뀌었으면
+거기서 멈춥니다. `predict.ipynb` 실행 도중에 발견하는 것보다 이 단계에서
+걸리는 편이 낫기 때문입니다.
 
-````
+### 3) 채점 재현성 검증 (본선 검수 표준 절차)
+
+아래 네 단계가 운영진이 그대로 실행하는 절차이고, 저희도 **빈 가상환경에서**
+같은 순서로 돌려 확인했습니다.
+
+```bash
+python3.10 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+bash download_weights.sh
+ITDA_INPUT_DIR=./sample ITDA_OUTPUT_PATH=/tmp/out.csv \
+  jupyter nbconvert --to notebook --execute predict.ipynb --output /tmp/executed.ipynb
+```
+
+[`sample/`](sample/) 은 이 절차의 입력으로 쓰라고 넣어 둔 대회 제공 이미지 5장입니다.
+정답은 [`docs/sample_expected.csv`](docs/sample_expected.csv) 에 있습니다.
+실행 로그는 [`docs/verify_python310.log`](docs/verify_python310.log) 입니다.
+
+500장 전체를 재실행하실 때는 타임아웃을 예산에 맞춰 주세요.
+
+```bash
 export ITDA_INPUT_DIR=./val_images
 export ITDA_OUTPUT_PATH=./submission.csv
 
 jupyter nbconvert --to notebook --execute predict.ipynb \
-    --ExecutePreprocessor.timeout=2400 \
+    --ExecutePreprocessor.timeout=2500 \
     --output /tmp/executed.ipynb
-````
+```
+
+> **`requirements.txt` 의 고정 버전은 채점 환경(cp310 / manylinux x86_64)에서
+> 휠이 실제로 해석되는지 확인하고 적은 값입니다.** 특히 `onnxruntime` 은 1.24부터
+> Python 3.10 휠 배포가 끊겨서 1.23.2 로 맞췄고, `opencv-python` 은 headless 와
+> 같이 적으면 두 배포판이 같은 `cv2/` 디렉터리를 덮어써 설치 순서에 결과가
+> 좌우되므로 한 쪽만 두었습니다. 자세한 이유는 파일 안의 주석에 적어 두었습니다.
 
 ---
 
@@ -201,7 +248,7 @@ reader = easyocr.Reader(
 ### 3) 환경 설치 시간은 속도 점수에 포함되지 않습니다
 
 - `pip install -r requirements.txt` 및 `download_weights.sh` 소요 시간은 속도 점수(10점) 산정에서 **제외** 됩니다.
-- 속도 점수는 `predict.ipynb` 의 Run All 실행 시간(최대 2400초)만으로 산정합니다.
+- 속도 점수는 `predict.ipynb` 의 Run All 실행 시간(본선 기준 최대 2500초)만으로 산정합니다.
 
 ---
 

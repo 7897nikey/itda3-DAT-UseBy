@@ -1,9 +1,22 @@
-# ITDA 3rd 학술제 - 채점 환경: Python 3.10 / Standard 4-Core vCPU / GPU 없음 / 오프라인
-# YOLO 검출도 onnxruntime으로 직접 돌려서(region_best.onnx) ultralytics/torch가
-# 필요 없음 - RapidOCR과 엔진을 하나로 통일함(실측: torch 경로 대비 7.1배 빠름).
+# ITDA 3rd 학술제 - 채점 환경: Ubuntu 22.04 LTS (x86_64) / Python 3.10 / 4-Core CPU / GPU 없음 / 인터넷 차단
+#
+# 아래 고정값은 전부 채점 환경과 같은 조건(cp310 / manylinux x86_64)에서 휠이
+# 실제로 해석되는지 확인하고 적은 것입니다. 개발 머신에서 우연히 깔려 있던
+# 버전을 옮겨 적으면 채점 서버에서 설치가 통째로 실패합니다.
+#
+# onnxruntime: 1.24부터 Python 3.10 휠 배포가 끊겼습니다. cp310에서 받을 수 있는
+#   최신이 1.23.2이고, 그래서 여기에 맞췄습니다.
+# opencv-python: rapidocr-onnxruntime 가 headless 가 아닌 'opencv-python' 을
+#   의존성으로 요구합니다. headless 를 같이 적으면 두 배포판이 같은 cv2/ 디렉터리를
+#   덮어써서 어느 쪽이 남을지가 설치 순서에 좌우됩니다. 그래서 한 쪽만 둡니다.
+#   4.11.0.86 의 cv2 확장 모듈은 libGL 을 링크하지 않고(GUI 라이브러리는 Qt 플러그인
+#   쪽에만 있음) 이 파이프라인은 imshow 를 쓰지 않으므로 헤드리스 서버에서 안전합니다.
+#
+# YOLO 검출도 onnxruntime 으로 직접 돌려서(region_best.onnx) ultralytics/torch 가
+# 필요 없습니다 - RapidOCR 과 엔진을 하나로 통일했습니다(실측: torch 경로 대비 7.1배).
 rapidocr-onnxruntime==1.4.4
-onnxruntime==1.30.0
-opencv-python-headless==4.9.0.80
+onnxruntime==1.23.2
+opencv-python==4.11.0.86
 numpy==1.26.4
 pandas==2.2.2
 Pillow==10.3.0
