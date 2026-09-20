@@ -56,6 +56,26 @@ KW_MFG = ["제조일자", "제조년월일", "제조일", "제조", "PROD", "PRD
 KW_EXP_EN = ["EXP"]
 ALL_KEYWORDS = KW_CONSUME + KW_DISTRIB + KW_MFG + KW_EXP_EN
 
+# 영문 기한 표기. 위 목록과 달리 정규식으로 찾는다 — OCR이 단어 사이를 점으로
+# 읽거나("BEST.BY"), 글자를 흘리거나("SELL BY" -> "SEL BY"), 대소문자가
+# 섞이기("Best By") 때문에 literal find 로는 거의 안 걸린다.
+#
+# 이 목록이 없어서 실패하던 실측 사례들:
+#   001377  "BEST.BY 2021 12 02"     -> 앵커가 없어 공백 구분 날짜를 못 찾음
+#   001078  "SEL BY E 2023 09 24"
+#   001336  "Use By: 04 JUL 21"
+#   003223  "2022/JUN/14 BEST IF USED BY"
+# gap_fill.py 와 partial_rescue.py 는 이미 BEST/USE BY 를 알고 있었는데
+# 정작 앵커 판정을 하는 여기만 EXP 하나뿐이었다. 그 불일치를 맞춘다.
+_KW_EXP_EN_RE = re.compile(
+    r"BEST\s*[.\-]?\s*(?:BEFORE|BY|IF\s*USED\s*BY)"
+    r"|BBE(?![A-Z])"
+    r"|SELL?\s*[.\-]?\s*BY"
+    r"|USE\s*[.\-]?\s*BY"
+    r"|CONSUME\s*[.\-]?\s*BY",
+    re.IGNORECASE,
+)
+
 # QA/설명용 — 최종 판정에는 관여하지 않고 explain()에서만 참고 정보로 노출
 RELATIVE_PATTERNS = [
     r"제조일(로부터|자로부터|부터)?\s*\d+\s*(일|개월|주|년)",
@@ -140,7 +160,10 @@ _YMD_KOREAN = re.compile(
 # 됨(실측: "OCT19-2021"처럼 월 이름과 일자 사이 공백이 아예 없고, 일자와
 # 연도 사이는 대시인 경우 확인됨, 001509.jpg). 월 이름 자체가 3글자 정확히
 # 일치해야 하는 강한 앵커라 구분자를 느슨하게 풀어도 오탐 위험은 낮음.
-_ENG_SEP = r"[\s,\-]*"
+# "/" 를 넣은 이유: "FEB/21/21", "2022/JUN/14" 처럼 슬래시로 끊는 표기가
+# 실측으로 확인됨(001016, 003223). 월 이름 3글자가 정확히 일치해야 하는
+# 강한 앵커라 구분자를 넓혀도 오탐 위험은 낮다.
+_ENG_SEP = r"[\s,\-/.]*"
 _DMY_ENGLISH = re.compile(
     r"(?<!\d)(\d{1,2})" + _ENG_SEP + r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)" + _ENG_SEP + r"(\d{4})(?!\d)",
     re.IGNORECASE,
@@ -158,6 +181,24 @@ _YMD_ENGLISH = re.compile(
     r"(?<!\d)(\d{4})" + _ENG_SEP + r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)" + _ENG_SEP + r"(\d{1,2})(?!\d)",
     re.IGNORECASE,
 )
+# 영문 월 + 2자리 연도. 위 세 패턴(_DMY/_MDY/_YMD_ENGLISH)은 전부 4자리
+# 연도만 받아서 "FEB/21/21"(001016), "APR/29/21"(003332), "04 JUL 21"(001336)
+# 을 통째로 놓치고 있었다. 2자리 연도는 앵커가 약하지만, 영문 월 3글자가
+# 정확히 일치해야 하므로 숫자만 있는 패턴보다 훨씬 안전하다.
+_MON_ALT_RE = r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"
+_DMY_ENGLISH_2Y = re.compile(
+    r"(?<!\d)(\d{1,2})" + _ENG_SEP + _MON_ALT_RE + _ENG_SEP + r"(\d{2})(?!\d)",
+    re.IGNORECASE,
+)
+_MDY_ENGLISH_2Y = re.compile(
+    r"(?<!\d)" + _MON_ALT_RE + _ENG_SEP + r"(\d{1,2})" + _ENG_SEP + r"(\d{2})(?!\d)",
+    re.IGNORECASE,
+)
+_YMD_ENGLISH_2Y = re.compile(
+    r"(?<!\d)(\d{2})" + _ENG_SEP + _MON_ALT_RE + _ENG_SEP + r"(\d{1,2})(?!\d)",
+    re.IGNORECASE,
+)
+
 # 일/월/4자리연도 순서 (예: "20/05/2026"). 확인된 DD-MM-YY(6자리 압축형) 규칙과
 # 같은 순서로, 수입품 등에 흔한 국제식 표기. _YMD_NUMERIC(연도가 맨 앞, 4자리)
 # 이나 _YMD_2DIGIT(연도가 2자리)과는 자릿수 조합이 달라 서로 안 겹친다.
@@ -350,6 +391,25 @@ def _find_full_candidates(text):
         mo = MONTH_NAME.get(mon_str)
         if mo and _valid_ymd(y, mo, d):
             spans.append((m.start(), m.end(), y, mo, d))
+    # 영문 월 + 2자리 연도. 4자리 연도판이 못 잡던 "FEB/21/21", "04 JUL 21" 등.
+    for m in _DMY_ENGLISH_2Y.finditer(text):
+        d, mon_str, yy = int(m.group(1)), m.group(2).upper(), int(m.group(3))
+        mo = MONTH_NAME.get(mon_str)
+        y = _normalize_2digit_year(yy)
+        if mo and _valid_ymd(y, mo, d):
+            spans.append((m.start(), m.end(), y, mo, d))
+    for m in _MDY_ENGLISH_2Y.finditer(text):
+        mon_str, d, yy = m.group(1).upper(), int(m.group(2)), int(m.group(3))
+        mo = MONTH_NAME.get(mon_str)
+        y = _normalize_2digit_year(yy)
+        if mo and _valid_ymd(y, mo, d):
+            spans.append((m.start(), m.end(), y, mo, d))
+    for m in _YMD_ENGLISH_2Y.finditer(text):
+        yy, mon_str, d = int(m.group(1)), m.group(2).upper(), int(m.group(3))
+        mo = MONTH_NAME.get(mon_str)
+        y = _normalize_2digit_year(yy)
+        if mo and _valid_ymd(y, mo, d):
+            spans.append((m.start(), m.end(), y, mo, d))
     for m in _DMY_NUMERIC_4Y.finditer(text):
         d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if _valid_ymd(y, mo, d):
@@ -357,9 +417,13 @@ def _find_full_candidates(text):
 
     # 구분자 없는 6자리(DD-MM-YY)/8자리(DD-MM-YYYY) — 키워드 근처(±30자)에서만 탐색
     seen_windows = set()
-    for kw in ALL_KEYWORDS:
-        for idx in _find_all_occurrences(text, kw):
-            ws, we = max(0, idx - 30), min(len(text), idx + len(kw) + 30)
+    kw_hits = [(idx, len(kw)) for kw in ALL_KEYWORDS for idx in _find_all_occurrences(text, kw)]
+    # 영문 기한 표기는 OCR 훼손·대소문자 때문에 literal find 로는 거의 안 걸려서
+    # 정규식으로 따로 찾는다("BEST.BY", "SEL BY", "Use By", "BBE" 등).
+    kw_hits += [(m.start(), m.end() - m.start()) for m in _KW_EXP_EN_RE.finditer(text)]
+    for idx, kwlen in kw_hits:
+        if True:
+            ws, we = max(0, idx - 30), min(len(text), idx + kwlen + 30)
             if (ws, we) in seen_windows:
                 continue
             seen_windows.add((ws, we))
@@ -409,6 +473,30 @@ def _nearest_after(after, keywords):
     return best
 
 
+def _min_opt(a, b):
+    """None을 무한대로 보고 더 작은 값을 고른다."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return min(a, b)
+
+
+def _nearest_before_en(before):
+    """앞 window 안의 영문 기한 표기까지의 거리. _nearest_before 와 같은 척도."""
+    best = None
+    for m in _KW_EXP_EN_RE.finditer(before):
+        d = len(before) - m.start()
+        if best is None or d < best:
+            best = d
+    return best
+
+
+def _nearest_after_en(after):
+    m = _KW_EXP_EN_RE.search(after)
+    return m.start() if m else None
+
+
 def _classify_kind(text, start, end, window=20):
     """후보 날짜 앞/뒤 window자 안의 키워드로 종류(EXP/MFG/UNKNOWN) 판별.
 
@@ -426,14 +514,14 @@ def _classify_kind(text, start, end, window=20):
 
     exp_kws = KW_CONSUME + KW_EXP_EN + (KW_DISTRIB if TREAT_DISTRIB_AS_ANSWER else [])
 
-    exp_before = _nearest_before(before, exp_kws)
+    exp_before = _min_opt(_nearest_before(before, exp_kws), _nearest_before_en(before))
     mfg_before = _nearest_before(before, KW_MFG)
     if exp_before is not None and (mfg_before is None or exp_before < mfg_before):
         return "EXP"
     if mfg_before is not None and (exp_before is None or mfg_before <= exp_before):
         return "MFG"
 
-    exp_after = _nearest_after(after, exp_kws)
+    exp_after = _min_opt(_nearest_after(after, exp_kws), _nearest_after_en(after))
     mfg_after = _nearest_after(after, KW_MFG)
     if exp_after is None and mfg_after is None:
         return "UNKNOWN"

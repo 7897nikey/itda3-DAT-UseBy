@@ -30,7 +30,7 @@ from date_parser import extract_expiry_fields as _extract, explain as _explain
 from ocr_normalize import normalize_ocr_text
 from partial_rescue import rescue_md
 from gap_fill import (apply_aliases, try_month_year_only, try_compact_dmy,
-                      try_compact_numeric)
+                      try_compact_numeric, try_space_ymd)
 
 NONE4 = {"year": "NONE", "month": "NONE", "day": "NONE", "final_date": "NONE"}
 
@@ -79,6 +79,16 @@ def extract_expiry_fields(text: str, rescue: bool = True, from_crop: bool = Fals
             y, mo, d = got
             r = _mk(y, mo, d)
             r["_via"] = "gap_fill_compact_numeric"
+            return r
+
+    # 공백만으로 끊긴 연-월-일(2020 06 03). 연-월만 뽑기 전에 시도한다 —
+    # 온전한 날짜가 연-월보다 항상 낫기 때문이다.
+    for t in (fixed, alias, text):
+        got = try_space_ymd(t, require_anchor=not from_crop)
+        if got:
+            y, mo, d = got
+            r = _mk(y, mo, d)
+            r["_via"] = "gap_fill_space_ymd"
             return r
 
     for t in (fixed, alias, text):

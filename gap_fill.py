@@ -139,6 +139,37 @@ def _valid_ymd(y, mo, d):
         return False
     return True
 
+# 연-월-일 사이가 전부 공백인 표기 (예: "2020 06 03", "2021 12 02").
+# date_parser 쪽에도 _YMD_SPACE_ONLY 가 있지만 그건 기한류 키워드 ±30자
+# 안에서만 도는데, 실측 실패 사례는 크롭 텍스트가 날짜 하나뿐이라 앵커로 삼을
+# 단어가 아예 없거나(001554 "2020 06 03") OCR이 키워드를 뭉개버린 경우가
+# 많았다(001754 "EET EF0FE 2021 12 05" — BEST BEFORE 가 훼손됨).
+#
+# 그래서 여기서는 크롭 텍스트에 한해(require_anchor=False) 앵커 없이도 받는다.
+# YOLO 가 이미 "이 영역이 날짜다"라고 위치를 보증해 준 텍스트이므로,
+# 다른 보강 단계(try_compact_numeric 등)와 같은 근거로 완화한다.
+#
+# 완전 이미지 텍스트(require_anchor=True)에는 앵커를 계속 요구한다 —
+# 영양성분표나 주소에 "2021 12 05" 꼴 숫자가 섞여 나올 수 있기 때문이다.
+_YMD_SPACE3 = re.compile(r"(?<![\d.\-/:])(\d{4})\s+(\d{1,2})\s+(\d{1,2})(?![\d.\-/:])")
+
+
+def try_space_ymd(text: str, require_anchor: bool = True):
+    """공백만으로 끊긴 연-월-일에서 (year, month, day)를 뽑는다."""
+    for m in _YMD_SPACE3.finditer(text):
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if not _valid_ymd(y, mo, d):
+            continue
+        s, e = max(0, m.start() - 25), min(len(text), m.end() + 25)
+        ctx = text[s:e]
+        if _has(ctx, _BAD_KW):
+            continue
+        if require_anchor and not _has(ctx, _DUE_KW):
+            continue
+        return y, mo, d
+    return None
+
+
 def try_compact_numeric(text: str, require_anchor: bool = True):
     """구분자 없는 YYYYMMDD/YYMMDD에서 (year, month, day)를 뽑는다.
 
