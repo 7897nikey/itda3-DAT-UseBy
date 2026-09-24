@@ -214,6 +214,7 @@
   넘으면 폴백을 끄는 시간 가드와, 크롭 긴 변을 4000px로 자르는 상한도 들어 있습니다.
   네트워크를 차단한 상태에서 7회 연속 완주를 확인했습니다(종료코드 0, 에러 0건).
 - 자세한 실측 분석(어디서 시간이 쓰이는지, 뭘 시도했다가 소용없었는지, 남은 실패 원인 등)은 [`docs/rapidocr_notes.md`](docs/rapidocr_notes.md)에 정리되어 있음.
+- 구조·파라미터·성능을 한 장으로 본다면 [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) 입니다. 크롭·검출 파라미터 4종(`pad`/`upscale`/`tightpad`/`conf_thresh`)을 전수 탐색해 현행 값이 최적임을 확인한 근거도 여기 있습니다.
 
 ---
 
@@ -239,6 +240,7 @@ itda3-DAT-UseBy/
 ├── README.md                  # 본 문서
 ├── .gitignore
 ├── docs/
+│   ├── MODEL_CARD.md          # 구조·파라미터·성능 한 장 요약 (외부 공유용)
 │   ├── rapidocr_notes.md      # 파이프라인 설계·실측 분석 상세 노트
 │   ├── sample_expected.csv    # sample/ 5장의 정답
 │   └── verify_python310.log   # 빈 Python 3.10 환경 검수 4단계 실행 로그
