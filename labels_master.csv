@@ -270,7 +270,7 @@
 002688,B,1_유통기한만;3_상대표기;4_참조표기,2021,06,11,2021-06-11,[9/20 수정] 연도가 뒤에 오는 표기(11.06.2021)는 일/월/년으로 읽음 (대회 규칙·운영진 확인),완료,김건우,1789018043680,2026-09-10 14:27,True,False,False,True,True,False,False,False,True,True,True,True,3,True
 002696,B,,2021,07,23,2021-07-23,,완료,김건우,1789018059063,2026-09-10 14:27,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002717,B,,2022,03,01,2022-03-01,,완료,김건우,1789018175894,2026-09-10 14:29,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-002761,B,2_다중날짜,2023,01,06,2023-01-06,[9/20 수정] 연도가 뒤에 오는 표기(06/01 2023)는 일/월/년으로 읽음 (대회 규칙·운영진 확인),완료,김건우,1789018193677,2026-09-10 14:29,False,True,False,False,False,False,False,False,True,True,True,True,1,True
+002761,B,2_다중날짜,2023,06,01,2023-06-01,[9/20 수정] 연도가 뒤에 오는 표기(06/01 2023)는 일/월/년으로 읽음 (대회 규칙·운영진 확인) / [9/25 수정] 인쇄는 연도가 앞(2023/06/01)이라 연/월/일로 읽는다. 9/20 교정이 연도-끝 규칙을 잘못 적용했던 것을 되돌림,완료,김건우,1789018193677,2026-09-10 14:29,False,True,False,False,False,False,False,False,True,True,True,True,1,True
 002766,B,,2021,03,16,2021-03-16,,완료,김건우,1789018209627,2026-09-10 14:30,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002789,B,,2021,04,03,2021-04-03,,완료,김건우,1789018221310,2026-09-10 14:30,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002820,B,1_유통기한만;5_판독불가_진짜,2021,11,19,2021-11-19,,완료,김건우,1789018242776,2026-09-10 14:30,True,False,False,False,False,True,False,False,True,True,True,True,2,True
