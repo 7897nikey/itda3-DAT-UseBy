@@ -195,7 +195,7 @@
 001072,B,,2023,09,18,2023-09-18,,완료,김건우,1788956743466,2026-09-09 21:25,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001092,B,,2021,03,19,2021-03-19,,완료,김건우,1788956762315,2026-09-09 21:26,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001195,B,1_유통기한만;4_참조표기;5_판독불가_진짜,2021,10,18,2021-10-18,,완료,김건우,1788956784465,2026-09-09 21:26,True,False,False,False,True,True,False,False,True,True,True,True,3,True
-001196,B,1_유통기한만;4_참조표기;5_판독불가_진짜,2025,10,18,2025-10-18,1195랑 같은 물건의 데이터임,완료,김건우,1788956835348,2026-09-09 21:27,True,False,False,False,True,True,False,False,True,True,True,True,3,True
+001196,B,1_유통기한만;4_참조표기;5_판독불가_진짜,2021,10,18,2021-10-18,"1195랑 같은 물건의 데이터임 / [9/26 전수감사] 인쇄 21.10.18, 연도 오타 (연사본 001195와 동일)",완료,김건우,1788956835348,2026-09-09 21:27,True,False,False,False,True,True,False,False,True,True,True,True,3,True
 001209,B,,2021,08,03,2021-08-03,[9/20 수정] 연도가 뒤에 오는 표기(03.08.2021)는 일/월/년으로 읽음 (대회 규칙·운영진 확인),완료,김건우,1788956849648,2026-09-09 21:27,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001231,B,,2021,05,05,2021-05-05,,완료,김건우,1788956864265,2026-09-09 21:27,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001237,B,,NONE,01,28,NONE-01-28,,완료,김건우,1788956879981,2026-09-09 21:27,False,False,False,False,False,False,False,False,False,True,True,False,0,True
@@ -216,7 +216,7 @@
 001532,B,,2022,06,21,2022-06-21,,완료,김건우,1789000513727,2026-09-10 09:35,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001544,B,,2021,08,02,2021-08-02,,완료,김건우,1789000527344,2026-09-10 09:35,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001555,B,,2020,06,03,2020-06-03,,완료,김건우,1789000543694,2026-09-10 09:35,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-001559,B,,2024,12,21,2024-12-21,24/12/21 -> 이렇게 되어있는 부분에 대한 판단 기준은 어떻게 해야할지?,완료,김건우,1789000611160,2026-09-10 09:36,False,False,False,False,False,False,False,False,True,True,True,True,0,True
+001559,B,,2021,12,24,2021-12-24,"24/12/21 -> 이렇게 되어있는 부분에 대한 판단 기준은 어떻게 해야할지? / [9/26 전수감사] 연사본 001558 포장에 'BEST BEFORE (DD/MM/YY), 읽는 법 00일/00월/00년' 인쇄 → 24/12/21=2021-12-24",완료,김건우,1789000611160,2026-09-10 09:36,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001568,B,1_유통기한만;3_상대표기,2021,03,09,2021-03-09,,완료,김건우,1789000625311,2026-09-10 09:37,True,False,False,True,False,False,False,False,True,True,True,True,2,True
 001583,B,,2021,12,15,2021-12-15,,완료,김건우,1789000641544,2026-09-10 09:37,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001589,B,1_유통기한만;4_참조표기,2023,01,09,2023-01-09,,완료,김건우,1789000652261,2026-09-10 09:37,True,False,False,False,True,False,False,False,True,True,True,True,2,True
@@ -245,7 +245,7 @@
 002039,B,,2021,12,03,2021-12-03,,완료,김건우,1789011739070,2026-09-10 12:42,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002049,B,1_유통기한만;3_상대표기,2021,03,25,2021-03-25,,완료,김건우,1789011751970,2026-09-10 12:42,True,False,False,True,False,False,False,False,True,True,True,True,2,True
 002067,B,,2020,04,30,2020-04-30,,완료,김건우,1789011766441,2026-09-10 12:42,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-002122,B,,2022,08,25,2022-08-25,,완료,김건우,1789011784057,2026-09-10 12:43,False,False,False,False,False,False,False,False,True,True,True,True,0,True
+002122,B,,2021,10,09,2021-10-09,"[9/26 전수감사] 인쇄 21.10.09 까지, 표에 '표면표기일까지(연.월.일)'. 기존 값은 사진에 없는 날짜",완료,김건우,1789011784057,2026-09-10 12:43,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002134,B,1_유통기한만;4_참조표기;5_판독불가_진짜,2022,11,02,2022-11-02,,완료,김건우,1789011804506,2026-09-10 12:43,True,False,False,False,True,True,False,False,True,True,True,True,3,True
 002138,B,,2021,06,29,2021-06-29,,완료,김건우,1789011818123,2026-09-10 12:43,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002154,B,1_유통기한만;4_참조표기;5_판독불가_진짜,2021,05,21,2021-05-21,,완료,김건우,1789011847623,2026-09-10 12:44,True,False,False,False,True,True,False,False,True,True,True,True,3,True
@@ -259,7 +259,7 @@
 002379,B,1_유통기한만;4_참조표기;5_판독불가_진짜,2022,10,20,2022-10-20,,완료,김건우,1789017864334,2026-09-10 14:24,True,False,False,False,True,True,False,False,True,True,True,True,3,True
 002413,B,1_유통기한만;5_판독불가_진짜,2022,07,20,2022-07-20,,완료,김건우,1789017879850,2026-09-10 14:24,True,False,False,False,False,True,False,False,True,True,True,True,2,True
 002441,B,,2021,08,03,2021-08-03,,완료,김건우,1789017896150,2026-09-10 14:24,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-002462,B,1_유통기한만;2b_부터까지쌍,2020,12,21,2020-12-21,,완료,김건우,1789017915169,2026-09-10 14:25,True,False,True,False,False,False,False,False,True,True,True,True,2,True
+002462,B,1_유통기한만;2b_부터까지쌍,2021,12,21,2021-12-21,"[9/26 전수감사] 인쇄는 제조일 2020.12.21, 라벨에 '제조일로부터 12개월까지' → 팀 규약대로 계산",완료,김건우,1789017915169,2026-09-10 14:25,True,False,True,False,False,False,False,False,True,True,True,True,2,True
 002479,B,,2022,07,NONE,2022-07-NONE,,완료,김건우,1789017945182,2026-09-10 14:25,False,False,False,False,False,False,False,False,True,True,False,False,0,True
 002489,B,,2021,04,18,2021-04-18,,완료,김건우,1789017956848,2026-09-10 14:25,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002502,B,1_유통기한만;3_상대표기,2022,01,24,2022-01-24,,완료,김건우,1789017970381,2026-09-10 14:26,True,False,False,True,False,False,False,False,True,True,True,True,2,True
@@ -508,7 +508,7 @@
 001405,E,,2021,01,27,2021-01-27,,완료,김건우,1789221919934,2026-09-12 23:05,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001423,E,,2021,11,NONE,2021-11-NONE,,완료,김건우,1789221938334,2026-09-12 23:05,False,False,False,False,False,False,False,False,True,True,False,False,0,True
 001436,E,,2021,09,20,2021-09-20,,완료,김건우,1789221947800,2026-09-12 23:05,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-001478,E,,2022,08,28,2022-08-28,,완료,김건우,1789221957034,2026-09-12 23:05,False,False,False,False,False,False,False,False,True,True,True,True,0,True
+001478,E,,2022,08,27,2022-08-27,[9/26 전수감사] 인쇄 2022.08.27 (확대 확인),완료,김건우,1789221957034,2026-09-12 23:05,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001494,E,,2023,08,17,2023-08-17,,완료,김건우,1789221969217,2026-09-12 23:06,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001505,E,,2021,01,27,2021-01-27,,완료,김건우,1789221978650,2026-09-12 23:06,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 001524,E,,2021,06,25,2021-06-25,,완료,김건우,1789221989150,2026-09-12 23:06,False,False,False,False,False,False,False,False,True,True,True,True,0,True
@@ -565,7 +565,7 @@
 002758,E,,2022,09,10,2022-09-10,,완료,김건우,1789222715815,2026-09-12 23:18,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002815,E,,2021,06,28,2021-06-28,,완료,김건우,1789222729132,2026-09-12 23:18,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002821,E,,2021,11,19,2021-11-19,,완료,김건우,1789222738348,2026-09-12 23:18,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-002833,E,,2021,06,30,2021-06-30,이미지가 흐릿하다,완료,김건우,1789222755132,2026-09-12 23:19,False,False,False,False,False,False,False,False,True,True,True,True,0,True
+002833,E,,2021,08,30,2021-08-30,"이미지가 흐릿하다 / [9/26 전수감사] 인쇄 2021 08 30, 흐릿하나 월 둘째 자리가 로트번호의 8과 같은 모양",완료,김건우,1789222755132,2026-09-12 23:19,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002905,E,,2021,05,19,2021-05-19,,완료,김건우,1789222768782,2026-09-12 23:19,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002909,E,,2021,07,21,2021-07-21,,완료,김건우,1789222778398,2026-09-12 23:19,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 002912,E,,2021,06,30,2021-06-30,,완료,김건우,1789222787132,2026-09-12 23:19,False,False,False,False,False,False,False,False,True,True,True,True,0,True
@@ -594,7 +594,7 @@
 003219,E,,2021,03,16,2021-03-16,,완료,김건우,1789223032290,2026-09-12 23:23,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 003230,E,,2022,03,28,2022-03-28,,완료,김건우,1789223045173,2026-09-12 23:24,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 003231,E,,2021,04,04,2021-04-04,,완료,김건우,1789223055673,2026-09-12 23:24,False,False,False,False,False,False,False,False,True,True,True,True,0,True
-003244,E,,NONE,07,21,NONE-07-21,,완료,김건우,1789223075606,2026-09-12 23:24,False,False,False,False,False,False,False,False,False,True,True,False,0,True
+003244,E,,2021,07,NONE,2021-07-NONE,[9/26 전수감사] 'Best before end / fin de: 07-21'은 월-연 표기 → 2021년 7월,완료,김건우,1789223075606,2026-09-12 23:24,False,False,False,False,False,False,False,False,False,True,True,False,0,True
 003247,E,,2023,01,17,2023-01-17,,완료,김건우,1789223084623,2026-09-12 23:24,False,False,False,False,False,False,False,False,True,True,True,True,0,True
 003304,E,,2025,03,NONE,2025-03-NONE,,완료,김건우,1789223106623,2026-09-12 23:25,False,False,False,False,False,False,False,False,True,True,False,False,0,True
 003316,E,,2022,02,07,2022-02-07,,완료,김건우,1789223119723,2026-09-12 23:25,False,False,False,False,False,False,False,False,True,True,True,True,0,True
