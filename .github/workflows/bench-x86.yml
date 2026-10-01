@@ -1,0 +1,45 @@
+# 병렬 노트북(predict_parallel.ipynb) x86 속도 측정.
+# custom_data 97장을 5벌 복제해 485장으로 만들고, 같은 러너에서 원본/병렬을 번갈아 3회씩 잰다.
+# 두 노트북의 출력 CSV가 바이트 단위로 같은지도 확인한다.
+name: bench-x86
+on: workflow_dispatch
+jobs:
+  bench:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - run: pip install -r requirements.txt && bash download_weights.sh
+      - name: 485장 입력 만들기
+        run: |
+          mkdir -p /tmp/in
+          for k in 1 2 3 4 5; do for f in custom_data/images/*; do
+            b=$(basename "$f"); cp "$f" "/tmp/in/r${k}_$b"; done; done
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          { echo "입력 $(ls /tmp/in | wc -l)장, nproc $(nproc)"; lscpu | grep -E "Model name|Thread|Core|Socket"; free -h | head -2; } | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: 원본 vs 병렬 (3회씩 교대)
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          for r in 1 2 3; do
+            for nb in predict.ipynb predict_parallel.ipynb; do
+              n=${nb%.ipynb}
+              /usr/bin/time -v env ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/${n}_$r.csv OMP_NUM_THREADS=4 \
+                jupyter nbconvert --to notebook --execute $nb --output /tmp/x_${n}_$r.ipynb 2> /tmp/t_${n}_$r.txt
+              line=$(python -c "import json;nb=json.load(open('/tmp/x_${n}_$r.ipynb'));print(' | '.join(l for c in nb['cells'] for o in c.get('outputs',[]) for l in ''.join(o.get('text',[]) or []).split('\n') if l.startswith('총 ')))")
+              echo "$n r$r: $line | $(grep -E 'Maximum resident' /tmp/t_${n}_$r.txt | xargs)" | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+          for r in 1 2 3; do
+            cmp /tmp/predict_$r.csv /tmp/predict_parallel_$r.csv && echo "r$r 출력 동일" || echo "r$r 출력 다름"
+          done | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-x86-logs
+          path: |
+            /tmp/predict*.csv
+            /tmp/t_*.txt
