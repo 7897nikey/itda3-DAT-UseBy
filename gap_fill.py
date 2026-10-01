@@ -58,7 +58,8 @@ MONTH_EN = {m: i+1 for i, m in enumerate(
     ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"])}
 _MONTH_ALT = "|".join(MONTH_EN)
 
-_MY_ENGLISH = re.compile(rf"(?<![A-Za-z])({_MONTH_ALT})\s+(\d{{4}})(?!\d)", re.I)
+# 10/1: "OCT.2021"(001954)처럼 점·슬래시로 붙는 표기도 받는다.
+_MY_ENGLISH = re.compile(rf"(?<![A-Za-z])({_MONTH_ALT})(?:\s*[.,/\-]\s*|\s+)(\d{{4}})(?!\d)", re.I)
 # 구분자에 콜론을 추가함. OCR이 '2027.10'의 마침표를 콜론으로 자주 흘림
 # (실측: cust_0069 '2027:10', cust_0098 '2028:11').
 # 앞이 2015~2035 범위의 4자리 연도라 '10:30' 같은 시각과 섞일 일이 없음.
@@ -193,4 +194,74 @@ def try_compact_numeric(text: str, require_anchor: bool = True):
             if require_anchor and not _has(ctx, _DUE_KW):
                 continue
             return y, mo, d
+    return None
+
+
+# ── ⑥ 공백만으로 끊긴 2자리 연도 날짜 (10/1) ───────────────────
+# 실측(9/23 D+E 실패 분석): 003343 "30 12 23", 001824 "Best Before 07 09 21",
+# 002016 "19 102022". 9/17부터 권고만 되고 미구현이던 것.
+# 2자리 연도 표기의 연/일 자리 판정은 date_parser 의 기존 규칙(안내문 → 연도 사전)을
+# 그대로 따른다. 구두점이 없어 오탐 위험이 크므로 크롭 텍스트에서만 쓰고
+# (require_anchor=False 경로), 방해 키워드가 있으면 버린다.
+# 세 자리 모두 2자리여야 하고, 앞에 구두점이 (공백 건너) 붙어 있으면 다른 날짜의
+# 꼬리다(000260 "04. 01 2 27"에서 "01 2 27"을 잡던 오탐).
+_SPACE_2Y = re.compile(r"(?<![\d.\-/:])(?<![\d.\-/:]\s)(\d{2})\s+(\d{2})\s+(\d{2})(?![\d.\-/:%])")
+_SPACE_D_MY4 = re.compile(r"(?<![\d.\-/:])(\d{1,2})\s+(\d{2})(\d{4})(?![\d.\-/:])")
+
+
+def try_space_2y(text: str, require_anchor: bool = True):
+    import date_parser as _dp
+    hint = _dp._detect_order_hint(text)
+    for m in _SPACE_D_MY4.finditer(text):
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if not _valid_ymd(y, mo, d):
+            continue
+        s, e = max(0, m.start() - 25), min(len(text), m.end() + 25)
+        if _has(text[s:e], _BAD_KW) or (require_anchor and not _has(text[s:e], _DUE_KW)):
+            continue
+        return y, mo, d
+    for m in _SPACE_2Y.finditer(text):
+        a, mo, c = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        s, e = max(0, m.start() - 25), min(len(text), m.end() + 25)
+        if _has(text[s:e], _BAD_KW) or (require_anchor and not _has(text[s:e], _DUE_KW)):
+            continue
+        ymd = (2000 + a, mo, c); dmy = (2000 + c, mo, a)
+        ymd_ok, dmy_ok = _valid_ymd(*ymd), _valid_ymd(*dmy)
+        if ymd_ok and dmy_ok:
+            if hint == "dmy" or (hint != "ymd" and _dp._prefer_dmy_by_year_prior(ymd[0], dmy[0])):
+                return dmy
+            return ymd
+        if ymd_ok:
+            return ymd
+        if dmy_ok:
+            return dmy
+    return None
+
+
+# ── ⑦ 기한 표지 바로 뒤의 월-연 (10/1) ───────────────────────
+# 실측: 002063 "LOT 502337-04 EXP 02/2023" — 근처 LOT 때문에 ③에서 버려짐.
+#       002753 "EXP:01.2022 G.1.207" — 혼동문자 보정이 "2022 6.1"을 날짜로 만들어 먼저 이김.
+#       002054 "Best before end: 0g/r 12 2021" — 공백 구분.
+#       003244 "Best before end / ... fin de: 07-21" — "END/FIN" 표지가 있으면 월-연(2자리).
+# 표지가 바로 앞(15자 안)에 있을 때만 받으므로 ③의 방해 키워드 검사는 건너뛴다.
+_STRONG_DUE = re.compile(r"(?:EXP|BEST\s*BEFORE(?:\s*END)?|BBE|USE\s*BY|소비기한|유통기한)", re.I)
+_MY_STRONG = re.compile(r"(?<![\d.\-/])(\d{1,2})(?:\s*[.\-/]\s*|\s+)(\d{4})(?![\d.\-/:])")
+_END_HINT = re.compile(r"BEFORE\s*END|\bFIN\b|FIN\s*DE|말일", re.I)
+_MY2_END = re.compile(r"(?<![\d.\-/:])(\d{2})\s*[.\-/]\s*(\d{2})(?![\d.\-/:])")
+
+
+def try_month_year_strong(text: str):
+    for m in _MY_STRONG.finditer(text):
+        mo, y = int(m.group(1)), int(m.group(2))
+        pre = text[max(0, m.start() - 25):m.start()]
+        anchors = list(_STRONG_DUE.finditer(pre))
+        # 표지와 날짜 사이에 긴 숫자가 끼어 있으면 그 숫자의 표지다
+        if 1 <= mo <= 12 and 2015 <= y <= 2035 and anchors and not re.search(r"\d{3}", pre[anchors[-1].end():]):
+            return y, mo
+    hint = _END_HINT.search(text)
+    if hint:
+        for m in _MY2_END.finditer(text, hint.end()):
+            mo, yy = int(m.group(1)), int(m.group(2))
+            if 1 <= mo <= 12 and 15 <= yy <= 35 and m.start() - hint.end() <= 60:
+                return 2000 + yy, mo
     return None

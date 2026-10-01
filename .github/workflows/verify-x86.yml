@@ -18,6 +18,12 @@ on:
     branches: [KGW_rapidocr]
     paths:
       - 'predict.ipynb'
+      - 'date_parser.py'
+      - 'date_parser_plus.py'
+      - 'gap_fill.py'
+      - 'preprocess.py'
+      - 'ocr_normalize.py'
+      - 'partial_rescue.py'
       - 'requirements.txt'
       - 'pipeline.py'
       - 'config_ko.yaml'

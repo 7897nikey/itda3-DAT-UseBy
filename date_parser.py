@@ -52,7 +52,8 @@ RELATIVE_EXPR_AS_NONE = False    # 미확정3: "제조일로부터 N개월"류�
 # ============================================================
 KW_CONSUME = ["소비기한"]
 KW_DISTRIB = ["유통기한"]
-KW_MFG = ["제조일자", "제조년월일", "제조일", "제조", "PROD", "PRD", "MFG", "PR0D", "PR0"]  # PR0D/PR0: OCR이 PROD/PRO의 O를 0으로 자주 오독
+KW_MFG = ["제조일자", "제조년월일", "제조일", "제조", "PROD", "PRD", "MFG", "MFD", "PR0D", "PR0",
+          "PRO:", "PRO.", "PRO "]  # 10/1: 평범한 "PRO:"가 빠져 있었다(002912 "PRO:02/11/20 ... EXP:30/06/21")  # PR0D/PR0: OCR이 PROD/PRO의 O를 0으로 자주 오독
 KW_EXP_EN = ["EXP"]
 ALL_KEYWORDS = KW_CONSUME + KW_DISTRIB + KW_MFG + KW_EXP_EN
 
@@ -310,14 +311,19 @@ _ORDER_HINT_YMD = re.compile(r"[연년][.\-\s]?월[.\-\s]?일")
 _ORDER_HINT_DMY = re.compile(r"일[.\-\s]?월[.\-\s]?[연년]")
 
 
+# 10/1: 영문 안내. "(DD/MM/YY)" 가 인쇄된 포장이 있다(001824).
+_ORDER_HINT_DMY_EN = re.compile(r"DD\s*[./\-]?\s*MM\s*[./\-]?\s*(?:YY|AA|JJ)", re.I)
+_ORDER_HINT_YMD_EN = re.compile(r"(?:YY|YYYY)\s*[./\-]?\s*MM\s*[./\-]?\s*DD", re.I)
+
+
 def _detect_order_hint(text):
     """텍스트 전체에서 표기 순서 안내를 찾는다. 'ymd'/'dmy'/None 반환.
     둘 다 나오거나 둘 다 안 나오면 판단 불가로 보고 None — 이 경우 기존
     다수결(연-월-일 우선) 규칙을 그대로 쓴다. 2자리 연도 표기가 연-월-일/
     일-월-연 둘 다로 유효하게 해석되는 진짜 애매한 경우에만 이 힌트를 쓴다
     (범위상 한쪽으로만 해석 가능한 경우는 애초에 힌트가 필요 없음)."""
-    has_ymd = bool(_ORDER_HINT_YMD.search(text))
-    has_dmy = bool(_ORDER_HINT_DMY.search(text))
+    has_ymd = bool(_ORDER_HINT_YMD.search(text) or _ORDER_HINT_YMD_EN.search(text))
+    has_dmy = bool(_ORDER_HINT_DMY.search(text) or _ORDER_HINT_DMY_EN.search(text))
     if has_ymd and not has_dmy:
         return "ymd"
     if has_dmy and not has_ymd:
@@ -400,6 +406,10 @@ def _find_full_candidates(text):
             spans.append((m.start(), m.end(), y, mo, d))
     for m in _MDY_ENGLISH_2Y.finditer(text):
         mon_str, d, yy = m.group(1).upper(), int(m.group(2)), int(m.group(3))
+        # 10/1: "Nov 2021"을 일 20 + 연 21로 쪼개 2021-11-20을 만들던 버그
+        # (001423, 001954). 일과 연 사이가 붙어 있고 합치면 4자리 연도면 건너뛴다.
+        if m.end(2) == m.start(3) and MIN_PLAUSIBLE_YEAR <= int(m.group(2) + m.group(3)) <= MAX_PLAUSIBLE_YEAR:
+            continue
         mo = MONTH_NAME.get(mon_str)
         y = _normalize_2digit_year(yy)
         if mo and _valid_ymd(y, mo, d):
@@ -408,6 +418,12 @@ def _find_full_candidates(text):
         yy, mon_str, d = int(m.group(1)), m.group(2).upper(), int(m.group(3))
         mo = MONTH_NAME.get(mon_str)
         y = _normalize_2digit_year(yy)
+        # 10/1: "17 JUL 21"은 일-월-연 패턴에도 똑같이 걸린다. 그쪽이 유효하면
+        # 영문 표기의 관례(일-월-연)를 따르고, 연도 사전이 연-월-일 쪽을 6배 이상
+        # 지지할 때만 연-월-일을 쓴다(001137: 2017 대신 2021).
+        if mo and _valid_ymd(2000 + d, mo, yy) and not order_hint == "ymd" and \
+                not _prefer_dmy_by_year_prior(2000 + d, y):
+            continue
         if mo and _valid_ymd(y, mo, d):
             spans.append((m.start(), m.end(), y, mo, d))
     for m in _DMY_NUMERIC_4Y.finditer(text):
@@ -509,8 +525,11 @@ def _classify_kind(text, start, end, window=20):
     키워드와 더 가깝다는 이유로 EXP로 잘못 분류돼, 제조일자가 소비기한보다
     먼저 채택돼버렸음.
     """
-    before = text[max(0, start - window):start]
-    after = text[end:end + window]
+    # 10/1: 대문자로 맞춰서 본다. 키워드 목록은 대문자인데 OCR 원문은 "Prod date",
+    # "Exp" 처럼 섞여 나와서, 제조일 키워드를 놓치고 뒤에 붙은 "Best before"에
+    # 끌려가 제조일을 EXP로 분류하던 사례(002084).
+    before = text[max(0, start - window):start].upper()
+    after = text[end:end + window].upper()
 
     exp_kws = KW_CONSUME + KW_EXP_EN + (KW_DISTRIB if TREAT_DISTRIB_AS_ANSWER else [])
 
@@ -574,7 +593,15 @@ def _pick_final(cands, text):
     # EXP로 분류된 후보가 하나라도 있으면 그걸 쓰고, 없을 때만 아래로 내려간다.
     exp_cands = [c for c in cands if c["kind"] == "EXP"]
     if exp_cands:
-        return exp_cands[0]
+        # 10/1: 키워드가 날짜 "앞"에 붙은 후보를 "뒤"에 붙은 후보보다 먼저 쓴다.
+        # "D1 EXP: D2"에서 D1은 뒤쪽 EXP 때문에 EXP로 분류되지만 그 EXP는 D2의
+        # 라벨이다(001303 "1AN:14/09/2020 EXP:14/09/2021" -> 제조일을 냈음).
+        exp_kws = KW_CONSUME + KW_EXP_EN + (KW_DISTRIB if TREAT_DISTRIB_AS_ANSWER else [])
+        def _anchored_before(c):
+            before = text[max(0, c["start"] - 20):c["start"]].upper()
+            return _min_opt(_nearest_before(before, exp_kws), _nearest_before_en(before)) is not None
+        pre = [c for c in exp_cands if _anchored_before(c)]
+        return (pre or exp_cands)[0]
 
     # "제조일로부터 N개월/년" 문구가 있으면 EXP 후보 판정보다는 약하지만,
     # "종류 모를 후보 1개 = 소비기한"이라는 아래 규칙보다는 먼저 확인해야 한다.
@@ -707,7 +734,8 @@ def extract_expiry_fields(text):
         month = f"{chosen['month']:02d}"
         day = f"{chosen['day']:02d}"
         return {"year": year, "month": month, "day": day,
-                "final_date": f"{year}-{month}-{day}"}
+                "final_date": f"{year}-{month}-{day}", "_kind": chosen.get("kind", "UNKNOWN"),
+                "_raw": text[chosen["start"]:chosen["end"]] if "start" in chosen else ""}
 
     partial = _find_partial_md(text)
     if partial:

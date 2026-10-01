@@ -101,6 +101,22 @@ def _filled(p):
     return sum(1 for k in ("year", "month", "day") if p.get(k, "NONE") != "NONE")
 
 
+def _weak_full(p):
+    """연·월·일을 다 채웠지만 OCR이 숫자를 흘린 흔적이 있는 답 (10/1, predict.ipynb와 동일).
+    월·일 자릿수가 모자라거나('2026.1 .05', '2020.12') 혼동문자 보정으로 만든 날짜면
+    멈추지 않고 다음 단계를 더 본다."""
+    import re
+    if p.get("_via") == "ocr_normalized":
+        return True
+    raw = p.get("_raw", "")
+    if not raw:
+        return False
+    digits = "".join(re.findall(r"\d", raw))
+    ylen = 4 if re.search(r"\d{4}", raw) else 2
+    need = 2 if re.search(r"[A-Za-z]{3}", raw) else 4
+    return len(digits) - ylen < need
+
+
 def make_abs_cfg(cfg_path):
     """설정에 적힌 상대경로를 절대경로로 바꾼 임시 설정 파일을 만들어서 그 경로를 돌려줌.
 
@@ -236,11 +252,20 @@ class Engine:
         # 뒤 단계가 찾았을 완전한 날짜를 놓친다. 연·월·일을 다 채운 답이 나오면
         # 그때 끊고, 아니면 끝까지 돌면서 가장 많이 채운 답을 남긴다.
         best = dict(NONE_ROW)
+        weak_full = None   # 처음 나온 약한 완성답 (끝까지 온전한 답이 없을 때 씀)
         def take(p, route, text):
-            nonlocal best
-            if _filled(p) > _filled(best):
+            nonlocal best, weak_full
+            if _filled(p) == 3:
+                if not _weak_full(p):
+                    best, info["route"], info["text"] = p, route, text[:300]
+                    return True
+                if weak_full is None:
+                    weak_full = p
+                    best, info["route"], info["text"] = p, route + "(weak)", text[:300]
+                return False
+            if weak_full is None and _filled(p) > _filled(best):
                 best, info["route"], info["text"] = p, route, text[:300]
-            return _filled(p) == 3
+            return False
 
         if crops:
             # 1차: 원본 크롭

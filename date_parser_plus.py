@@ -30,7 +30,8 @@ from date_parser import extract_expiry_fields as _extract, explain as _explain
 from ocr_normalize import normalize_ocr_text
 from partial_rescue import rescue_md
 from gap_fill import (apply_aliases, try_month_year_only, try_compact_dmy,
-                      try_compact_numeric, try_space_ymd)
+                      try_compact_numeric, try_space_ymd, try_space_2y,
+                      try_month_year_strong)
 
 NONE4 = {"year": "NONE", "month": "NONE", "day": "NONE", "final_date": "NONE"}
 
@@ -55,6 +56,13 @@ def extract_expiry_fields(text: str, rescue: bool = True, from_crop: bool = Fals
     raw = _extract(alias)
     if raw["final_date"] != "NONE":
         return raw
+
+    # 10/1: 기한 표지 바로 뒤의 월-연은 혼동문자 보정보다 먼저 본다.
+    got = try_month_year_strong(alias)
+    if got:
+        r = _mk(*got)
+        r["_via"] = "gap_fill_month_year_strong"
+        return r
 
     fixed = normalize_ocr_text(alias)
     if fixed != alias:
@@ -90,6 +98,16 @@ def extract_expiry_fields(text: str, rescue: bool = True, from_crop: bool = Fals
             r = _mk(y, mo, d)
             r["_via"] = "gap_fill_space_ymd"
             return r
+
+    # 10/1: 공백만으로 끊긴 2자리 연도(30 12 23). 크롭 텍스트에서만.
+    if from_crop:
+        for t in (fixed, alias, text):
+            got = try_space_2y(t, require_anchor=False)
+            if got:
+                y, mo, d = got
+                r = _mk(y, mo, d)
+                r["_via"] = "gap_fill_space_2y"
+                return r
 
     for t in (fixed, alias, text):
         got = try_month_year_only(t, require_anchor=not from_crop)
