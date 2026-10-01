@@ -1,0 +1,53 @@
+# 실험용: 병렬 노트북(predict_parallel.ipynb)과 현행 노트북(predict.ipynb)의 x86 속도 비교.
+# speed-bench 브랜치에서만 돈다. 제출 경로(main / KGW_rapidocr)와 무관하다.
+#
+# custom_data 97장을 5벌 복제해 485장(대회 500장 규모)으로 만들고, 같은 러너에서
+# 현행/병렬을 번갈아 3회씩 잰다. 메모리는 시스템 사용량 최댓값에서 실행 전 값을 뺀 것이라
+# 작업 프로세스 여러 개를 합친 값이다.
+name: bench-x86
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [speed-bench]
+
+jobs:
+  bench:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - name: 설치
+        run: pip install -r requirements.txt && bash download_weights.sh
+      - name: 485장 입력 만들기
+        run: |
+          mkdir -p /tmp/in
+          for k in 1 2 3 4 5; do for f in custom_data/images/*; do
+            cp "$f" "/tmp/in/r${k}_$(basename "$f")"; done; done
+          echo "입력 $(ls /tmp/in | wc -l)장 / nproc $(nproc)" | tee -a $GITHUB_STEP_SUMMARY
+          lscpu | grep -E "Model name|Thread\(s\) per core|Core\(s\) per socket|Socket" | tee -a $GITHUB_STEP_SUMMARY
+          free -m | tee -a $GITHUB_STEP_SUMMARY
+      - name: 현행 vs 병렬 (3회씩 교대)
+        run: |
+          echo '| 실행 | Run All 초 | 메모리 증가 최대 (MB) | 노트북 출력 |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|---|---|' >> $GITHUB_STEP_SUMMARY
+          for r in 1 2 3; do
+            for nb in predict predict_parallel; do
+              base=$(free -m | awk '/Mem:/{print $3}'); echo 0 > /tmp/peak
+              ( while true; do u=$(free -m | awk '/Mem:/{print $3}'); p=$(cat /tmp/peak); [ $u -gt $p ] && echo $u > /tmp/peak; sleep 1; done ) &
+              mon=$!
+              s=$(date +%s.%N)
+              ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/${nb}_$r.csv OMP_NUM_THREADS=4 \
+                jupyter nbconvert --to notebook --execute $nb.ipynb --output /tmp/x_${nb}_$r.ipynb
+              e=$(date +%s.%N); kill $mon
+              last=$(python -c "import json;nb=json.load(open('/tmp/x_${nb}_$r.ipynb'));t=''.join(o.get('text','') for o in nb['cells'][3]['outputs']).strip().splitlines();print([l for l in t if l.startswith('총')][0])")
+              echo "| $nb r$r | $(echo "$e - $s" | bc) | $(( $(cat /tmp/peak) - base )) | $last |" | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+      - name: 출력 동일성
+        run: |
+          for r in 1 2 3; do
+            if cmp -s /tmp/predict_$r.csv /tmp/predict_parallel_$r.csv; then echo "r$r 출력 동일"; else echo "r$r 출력 다름"; diff /tmp/predict_$r.csv /tmp/predict_parallel_$r.csv | head; fi
+          done | tee -a $GITHUB_STEP_SUMMARY
