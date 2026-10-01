@@ -42,7 +42,7 @@ jobs:
               ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/${nb}_$r.csv OMP_NUM_THREADS=4 \
                 jupyter nbconvert --to notebook --execute $nb.ipynb --output /tmp/x_${nb}_$r.ipynb
               e=$(date +%s.%N); kill $mon
-              last=$(python -c "import json;nb=json.load(open('/tmp/x_${nb}_$r.ipynb'));t=''.join(o.get('text','') for o in nb['cells'][3]['outputs']).strip().splitlines();print([l for l in t if l.startswith('총')][0])")
+              last=$(python -c "import json;nb=json.load(open('/tmp/x_${nb}_$r.ipynb'));t=''.join(''.join(o.get('text','')) for o in nb['cells'][3]['outputs']).strip().splitlines();print([l for l in t if l.startswith('총')][0])")
               echo "| $nb r$r | $(echo "$e - $s" | bc) | $(( $(cat /tmp/peak) - base )) | $last |" | tee -a $GITHUB_STEP_SUMMARY
             done
           done
