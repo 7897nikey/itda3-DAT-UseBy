@@ -1,0 +1,33 @@
+# 실험용: spawn 병렬 노트북 x86 최종 측정 (speed-bench 전용, 제출 경로와 무관)
+name: bench-final
+on:
+  workflow_dispatch:
+  push:
+    branches: [speed-bench]
+    paths: ['parallel_worker.py', '.github/workflows/bench-final.yml']
+jobs:
+  bench:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - run: pip install -r requirements.txt && bash download_weights.sh
+      - name: 현행 vs spawn 병렬 (194장, 3회 교대)
+        run: |
+          { echo '```'; lscpu | grep -E "Model name|Thread\(s\) per core|Core\(s\) per socket"; echo '```'; } >> $GITHUB_STEP_SUMMARY
+          mkdir -p /tmp/in; for k in 1 2; do for f in custom_data/images/*; do cp "$f" "/tmp/in/r${k}_$(basename "$f")"; done; done
+          echo '| 실행 | Run All 초 | 메모리 최대 (python 프로세스 RSS 합, MB) | 셀 출력 |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|---|---|' >> $GITHUB_STEP_SUMMARY
+          for r in 1 2 3; do for nb in predict predict_parallel; do
+            echo 0 > /tmp/peak
+            ( while true; do u=$(ps -C python,python3 -o rss= | awk '{s+=$1} END {print int(s/1024)}'); p=$(cat /tmp/peak); [ "$u" -gt "$p" ] && echo $u > /tmp/peak; sleep 1; done ) & mon=$!
+            s=$(date +%s.%N)
+            ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/${nb}_$r.csv OMP_NUM_THREADS=4 \
+              jupyter nbconvert --to notebook --execute $nb.ipynb --output /tmp/x_${nb}_$r.ipynb 2>/dev/null
+            e=$(date +%s.%N); kill $mon
+            out=$(python -c "import json;nb=json.load(open('/tmp/x_${nb}_$r.ipynb'));t=''.join(''.join(o.get('text','')) for o in nb['cells'][3]['outputs']).strip().splitlines();print(' / '.join(l.strip() for l in t if l.startswith('총') or '병렬 실패' in l or 'WARN' in l))")
+            echo "| $nb r$r | $(echo "$e - $s" | bc) | $(cat /tmp/peak) | $out |" | tee -a $GITHUB_STEP_SUMMARY
+          done; done
+          for r in 1 2 3; do cmp -s /tmp/predict_$r.csv /tmp/predict_parallel_$r.csv && echo "r$r 출력 동일" || echo "r$r 출력 다름"; done | tee -a $GITHUB_STEP_SUMMARY
