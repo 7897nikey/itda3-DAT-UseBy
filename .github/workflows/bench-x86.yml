@@ -7,9 +7,7 @@
 name: bench-x86
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [speed-bench]
+  workflow_dispatch:   # 1차 측정 완료(10/2). 재실행은 수동으로만.
 
 jobs:
   bench:

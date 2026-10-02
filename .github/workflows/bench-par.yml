@@ -1,0 +1,31 @@
+# 실험용: CPU 병렬화 가설 검증 (speed-bench 브랜치 전용, 제출 경로와 무관)
+# 같은 러너에서 구성 15개를 2회씩 교대로 잰다. custom_data 앞 60장.
+name: bench-par
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [speed-bench]
+    paths: ['bench/**', '.github/workflows/bench-par.yml']
+
+jobs:
+  bench:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - run: pip install -r requirements.txt && bash download_weights.sh
+      - name: 러너 사양
+        run: |
+          { echo '```'; lscpu | grep -E "Model name|Thread\(s\) per core|Core\(s\) per socket|^CPU\(s\)"; echo '```'; } | tee -a $GITHUB_STEP_SUMMARY
+      - name: 구성별 측정 (2회 교대)
+        run: |
+          mkdir -p /tmp/r
+          CFGS="seq_w1_t4 seq_w1_t2 seq_w1_t1 seq_w1_t4_nospin proc_w2_t1 proc_w4_t1 proc_w2_t2 proc_w4_t1_nospin thr_w4_t1 thr_w2_t2 seq_w1_t4_fast proc_w4_t1_fast seq_w1_t1_yolo seq_w1_t4_yolo proc_w4_t1_yolo"
+          for r in 1 2; do for c in $CFGS; do
+            python bench/bench_par.py $c custom_data/images 60 /tmp/r/${c}_r$r.json 2>&1 | grep -v "^YOLO\|^입력"
+          done; done
+      - name: 요약
+        run: python bench/summarize.py /tmp/r | tee -a $GITHUB_STEP_SUMMARY
