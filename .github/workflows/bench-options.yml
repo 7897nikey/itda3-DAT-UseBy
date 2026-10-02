@@ -1,0 +1,53 @@
+# 실험용: 병렬 옵션 비교 (speed-bench 전용, 제출 경로와 무관). 194장 × 2회 교대.
+name: bench-options
+on:
+  workflow_dispatch:
+  push:
+    branches: [speed-bench]
+    paths: ['.github/workflows/bench-options.yml']
+jobs:
+  bench:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - run: pip install -r requirements.txt && bash download_weights.sh
+      - name: 옵션 비교
+        run: |
+          { echo '```'; lscpu | grep -E "Model name|Thread\(s\) per core|Core\(s\) per socket"; free -m | head -2; echo '```'; } >> $GITHUB_STEP_SUMMARY
+          mkdir -p /tmp/in; for k in 1 2; do for f in custom_data/images/*; do cp "$f" "/tmp/in/r${k}_$(basename "$f")"; done; done
+          echo '| 옵션 | 회차 | Run All 초 | RSS 합 최대 MB | PSS 합 최대 MB | 셀 출력 |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|---|---|---|---|' >> $GITHUB_STEP_SUMMARY
+          run() {  # $1=이름 $2=노트북 $3..=환경변수
+            name=$1; nb=$2; shift 2
+            echo "0 0" > /tmp/peak
+            ( while true; do
+                pids=$(pgrep -f "python|jupyter" | tr '\n' ' ')
+                rss=0; pss=0
+                for p in $pids; do
+                  r=$(awk '/^Rss:/{print $2}' /proc/$p/smaps_rollup 2>/dev/null); s=$(awk '/^Pss:/{print $2}' /proc/$p/smaps_rollup 2>/dev/null)
+                  rss=$((rss + ${r:-0})); pss=$((pss + ${s:-0}))
+                done
+                read pr ps < /tmp/peak; [ $rss -gt $pr ] && pr=$rss; [ $pss -gt $ps ] && ps=$pss; echo "$pr $ps" > /tmp/peak
+                sleep 1; done ) & mon=$!
+            s=$(date +%s.%N)
+            env "$@" ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/${name}_$r.csv OMP_NUM_THREADS=4 \
+              jupyter nbconvert --to notebook --execute $nb --output /tmp/x_${name}_$r.ipynb 2>/dev/null
+            e=$(date +%s.%N); kill $mon; read pr ps < /tmp/peak
+            out=$(python -c "import json;nb=json.load(open('/tmp/x_${name}_$r.ipynb'));t=''.join(''.join(o.get('text','')) for o in nb['cells'][3]['outputs']).strip().splitlines();print(' / '.join(l.strip() for l in t if l.startswith('총') or '병렬 실패' in l or 'WARN' in l))")
+            echo "| $name | r$r | $(echo "$e - $s" | bc) | $((pr/1024)) | $((ps/1024)) | $out |" | tee -a $GITHUB_STEP_SUMMARY
+          }
+          for r in 1 2; do
+            run seq        predict.ipynb          X=1
+            run w4t1       predict_parallel.ipynb ITDA_WORKERS=4
+            run w3t1       predict_parallel.ipynb ITDA_WORKERS=3
+            run w2t1       predict_parallel.ipynb ITDA_WORKERS=2
+            run w2t2       predict_parallel.ipynb ITDA_WORKERS=2 ITDA_WORKER_THREADS=2
+            run w4t1_free  predict_parallel.ipynb ITDA_WORKERS=4 ITDA_FREE_PARENT=1
+            run w3t1_free  predict_parallel.ipynb ITDA_WORKERS=3 ITDA_FREE_PARENT=1
+          done
+          for r in 1 2; do for n in w4t1 w3t1 w2t1 w2t2 w4t1_free w3t1_free; do
+            cmp -s /tmp/seq_$r.csv /tmp/${n}_$r.csv && echo "$n r$r 출력 동일" || echo "$n r$r 출력 다름"
+          done; done | tee -a $GITHUB_STEP_SUMMARY
