@@ -1,0 +1,32 @@
+# 실험용: 병렬 노트북이 리눅스에서 실제로 병렬로 도는지 확인 (speed-bench 전용)
+name: bench-diag2
+on:
+  workflow_dispatch:
+  push:
+    branches: [speed-bench]
+    paths: ['.github/workflows/bench-diag2.yml']
+jobs:
+  diag:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - run: pip install -r requirements.txt && bash download_weights.sh
+      - name: 병렬 노트북 24장 — 셀 출력 전문 + 프로세스별 CPU
+        run: |
+          lscpu | grep -E "Model name"
+          mkdir -p /tmp/in; ls custom_data/images | head -24 | while read f; do cp "custom_data/images/$f" /tmp/in/; done
+          ( while true; do ps -eLo pid,ppid,nlwp,pcpu,cputime,comm --sort=-pcpu | grep -E "python" | head -8; echo ---; sleep 15; done ) > /tmp/ps.log 2>&1 &
+          ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/o.csv OMP_NUM_THREADS=4 \
+            jupyter nbconvert --to notebook --execute predict_parallel.ipynb --output /tmp/x.ipynb
+          python - <<'PY'
+          import json
+          nb = json.load(open("/tmp/x.ipynb"))
+          for k, c in enumerate(nb["cells"]):
+              for o in c.get("outputs", []):
+                  t = o.get("text") or "".join(o.get("traceback", [])) or str(o.get("data", ""))[:300]
+                  print(f"--- cell {k} [{o.get('output_type')}/{o.get('name','')}]"); print("".join(t) if isinstance(t, list) else t)
+          PY
+          echo "=== ps 표본"; head -60 /tmp/ps.log
