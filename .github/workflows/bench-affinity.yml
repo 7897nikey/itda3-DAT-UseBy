@@ -16,7 +16,7 @@ jobs:
       - run: pip install -r requirements.txt && bash download_weights.sh
       - name: CPU 고정 진단
         run: |
-          { echo '```'; lscpu | grep -E "Model name|Thread\(s\) per core|Core\(s\) per socket"; OMP_NUM_THREADS=4 python bench/affinity_diag.py 2>&1 | grep -v "^YOLO\|^입력"; echo '```'; } | tee -a $GITHUB_STEP_SUMMARY
+          { echo '```'; lscpu | grep -E "Model name|Thread\(s\) per core|Core\(s\) per socket"; OMP_NUM_THREADS=4 timeout 600 python bench/affinity_diag.py 2>&1 | grep -v "^YOLO\|^입력"; echo '```'; } | tee -a $GITHUB_STEP_SUMMARY
       - name: 노트북 3종 (194장, 2회 교대)
         run: |
           mkdir -p /tmp/in; for k in 1 2; do for f in custom_data/images/*; do cp "$f" "/tmp/in/r${k}_$(basename "$f")"; done; done
