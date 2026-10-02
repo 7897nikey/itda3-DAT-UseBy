@@ -26,6 +26,7 @@ on:
       - 'partial_rescue.py'
       - 'requirements.txt'
       - 'pipeline.py'
+      - 'parallel_worker.py'
       - 'config_ko.yaml'
       - 'weights/**'
       - '.github/workflows/verify-x86.yml'
@@ -79,13 +80,22 @@ jobs:
       - name: 4) 속도 측정 (custom_data 97장, 최대 메모리 포함)
         run: |
           . .venv/bin/activate
+          # 병렬 실행이라 /usr/bin/time 의 최대 RSS 는 가장 큰 프로세스 하나뿐이다.
+          # 작업 프로세스까지 합친 PSS(공유 페이지를 나눠 센 값) 최댓값을 따로 잰다.
+          echo 0 > /tmp/pss_peak
+          ( set +e; while true; do
+              t=0; for p in $(pgrep -f "python|jupyter"); do
+                v=$(awk '/^Pss:/{print $2}' /proc/$p/smaps_rollup 2>/dev/null); t=$((t + ${v:-0})); done
+              [ $t -gt $(cat /tmp/pss_peak) ] && echo $t > /tmp/pss_peak; sleep 1; done ) & mon=$!
           /usr/bin/time -v env \
             ITDA_INPUT_DIR=./custom_data/images ITDA_OUTPUT_PATH=/tmp/speed.csv OMP_NUM_THREADS=4 \
             jupyter nbconvert --to notebook --execute predict.ipynb --output /tmp/speed.ipynb \
             2> /tmp/time.txt || true
+          kill $mon 2>/dev/null || true
           echo "## 속도·메모리 (custom_data 97장)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           grep -E 'Elapsed|Maximum resident' /tmp/time.txt | tee -a $GITHUB_STEP_SUMMARY
+          echo "전체 프로세스 PSS 합 최대: $(( $(cat /tmp/pss_peak) / 1024 )) MB" | tee -a $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           python - <<'PY' | tee -a $GITHUB_STEP_SUMMARY
           import json,re
@@ -94,6 +104,21 @@ jobs:
               for o in c.get('outputs',[]):
                   for l in ''.join(o.get('text',[]) or []).split('\n'):
                       if '장당' in l or '총 ' in l: print(l)
+          PY
+
+      - name: 4-1) 병렬 실행 확인
+        # 리눅스에서 병렬이 조용히 순차로 넘어가던 사고(10/2)를 다시 못 넘어가게 막는다.
+        run: |
+          python - <<'PY'
+          import json, sys
+          bad = False
+          for f in ("/tmp/executed.ipynb", "/tmp/speed.ipynb"):
+              txt = "".join("".join(o.get("text", [])) for c in json.load(open(f))["cells"] for o in c.get("outputs", []))
+              line = [l for l in txt.splitlines() if l.startswith("총 ")]
+              print(f, "→", line[-1] if line else "(총 줄 없음)")
+              if "병렬 실패" in txt or not any("병렬 " in l for l in line):
+                  bad = True
+          sys.exit(1 if bad else 0)
           PY
 
       - name: 5) 정답 대조 (custom_data)
