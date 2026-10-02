@@ -1,10 +1,7 @@
 # 실험용: fork 작업 프로세스의 CPU 고정 상속 진단 + 수정본 노트북 재측정 (speed-bench 전용)
 name: bench-affinity
 on:
-  workflow_dispatch:
-  push:
-    branches: [speed-bench]
-    paths: ['bench/affinity_diag.py', 'predict_parallel.ipynb', '.github/workflows/bench-affinity.yml']
+  workflow_dispatch:   # 진단 완료(10/2). 수동 실행만.
 jobs:
   bench:
     runs-on: ubuntu-22.04

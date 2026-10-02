@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [speed-bench]
-    paths: ['.github/workflows/bench-options.yml']
+    paths: ['.github/workflows/bench-options.yml']   # 수정 시 재실행
 jobs:
   bench:
     runs-on: ubuntu-22.04
@@ -23,7 +23,7 @@ jobs:
           run() {  # $1=이름 $2=노트북 $3..=환경변수
             name=$1; nb=$2; shift 2
             echo "0 0" > /tmp/peak
-            ( while true; do
+            ( set +e; while true; do
                 pids=$(pgrep -f "python|jupyter" | tr '\n' ' ')
                 rss=0; pss=0
                 for p in $pids; do
@@ -35,7 +35,7 @@ jobs:
             s=$(date +%s.%N)
             env "$@" ITDA_INPUT_DIR=/tmp/in ITDA_OUTPUT_PATH=/tmp/${name}_$r.csv OMP_NUM_THREADS=4 \
               jupyter nbconvert --to notebook --execute $nb --output /tmp/x_${name}_$r.ipynb 2>/dev/null
-            e=$(date +%s.%N); kill $mon; read pr ps < /tmp/peak
+            e=$(date +%s.%N); kill $mon 2>/dev/null || true; read pr ps < /tmp/peak
             out=$(python -c "import json;nb=json.load(open('/tmp/x_${name}_$r.ipynb'));t=''.join(''.join(o.get('text','')) for o in nb['cells'][3]['outputs']).strip().splitlines();print(' / '.join(l.strip() for l in t if l.startswith('총') or '병렬 실패' in l or 'WARN' in l))")
             echo "| $name | r$r | $(echo "$e - $s" | bc) | $((pr/1024)) | $((ps/1024)) | $out |" | tee -a $GITHUB_STEP_SUMMARY
           }
