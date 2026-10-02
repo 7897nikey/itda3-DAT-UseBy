@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [speed-bench]
-    paths: ['bench/**', '.github/workflows/bench-par.yml']
+    paths: ['bench/bench_par.py', 'bench/summarize.py', '.github/workflows/bench-par.yml']
 
 jobs:
   bench:
